@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:sorteos_micro/firebase_options.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'app/config/app_config.dart';
 import 'app/themes/app_theme.dart';
 import 'app/routes/app_pages.dart';
 import 'app/services/auth_service.dart';
 import 'app/services/notification_service.dart';
+import 'app/services/payment_service.dart';
 import 'app/services/storage_service.dart';
+import 'app/services/supabase_service.dart';
+import 'app/services/biometric_service.dart';
 import 'app/bindings/initial_binding.dart';
 
 void main() async {
@@ -23,7 +26,10 @@ void main() async {
   ]);
   
   // Inicializar Firebase
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+
+  );
   
   // Inicializar Supabase
   await Supabase.initialize(
@@ -42,6 +48,9 @@ Future<void> initServices() async {
   await Get.putAsync(() => StorageService().init());
   await Get.putAsync(() => AuthService().init());
   await Get.putAsync(() => NotificationService().init());
+  await Get.putAsync(() => SupabaseService().init());
+  await Get.putAsync(() => PaymentService().init());
+  await Get.putAsync(() => BiometricService().init());
 }
 
 class SorteosMicroApp extends StatelessWidget {
@@ -62,7 +71,7 @@ class SorteosMicroApp extends StatelessWidget {
       fallbackLocale: Locale('es', 'ES'),
       builder: (context, child) {
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
           child: child!,
         );
       },

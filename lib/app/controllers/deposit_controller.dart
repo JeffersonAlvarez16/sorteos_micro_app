@@ -9,6 +9,7 @@ import '../data/models/deposit_model.dart';
 import '../services/auth_service.dart';
 import '../services/supabase_service.dart';
 import '../services/payment_service.dart';
+import '../data/models/bank_model.dart';
 import '../config/app_config.dart';
 
 class DepositController extends GetxController {
@@ -30,23 +31,33 @@ class DepositController extends GetxController {
 
   // Observable variables
   final RxList<DepositModel> _deposits = <DepositModel>[].obs;
+  final RxList<BankModel> _availableBanks = <BankModel>[].obs;
   final RxBool _isLoading = false.obs;
   final RxBool _isSubmitting = false.obs;
   final RxString _selectedPaymentMethod = ''.obs;
+  final RxString _selectedBankId = ''.obs;
   final Rx<File?> _selectedProofImage = Rx<File?>(null);
   final RxString _proofImageUrl = ''.obs;
   final RxDouble _depositAmount = 0.0.obs;
   final RxBool _showInstructions = false.obs;
   final RxInt _currentStep = 0.obs;
+  final RxString _selectedFilter = 'all'.obs;
+  final RxBool _showDepositFormView = false.obs;
+  final RxBool _showDepositHistoryView = true.obs;
+  final RxBool _isLoadingMore = false.obs;
 
   // Getters
   List<DepositModel> get deposits => _deposits;
   List<DepositModel> get pendingDeposits => 
-      _deposits.where((d) => d.status == 'pending').toList();
+      _deposits.where((d) => d.status == DepositStatus.pending).toList();
   List<DepositModel> get approvedDeposits => 
-      _deposits.where((d) => d.status == 'approved').toList();
+      _deposits.where((d) => d.status == DepositStatus.approved).toList();
   List<DepositModel> get rejectedDeposits => 
-      _deposits.where((d) => d.status == 'rejected').toList();
+      _deposits.where((d) => d.status == DepositStatus.rejected).toList();
+  
+  // Bancos disponibles
+  List<BankModel> get availableBanks => _availableBanks;
+  String get selectedBank => _selectedBankId.value;
   
   bool get isLoading => _isLoading.value;
   bool get isSubmitting => _isSubmitting.value;
@@ -65,27 +76,91 @@ class DepositController extends GetxController {
       !_isSubmitting.value;
 
   double get totalDeposited => _deposits
-      .where((d) => d.status == 'approved')
+      .where((d) => d.status == DepositStatus.approved)
       .fold(0.0, (sum, d) => sum + d.amount);
+
+  // Additional getters for the view
+  List<DepositModel> get filteredDeposits {
+    switch (_selectedFilter.value) {
+      case 'pending':
+        return pendingDeposits;
+      case 'approved':
+        return approvedDeposits;
+      case 'rejected':
+        return rejectedDeposits;
+      case 'all':
+      default:
+        return _deposits;
+    }
+  }
+
+  List<PaymentMethod> get availablePaymentMethods => PaymentMethod.values;
+  
+  bool get isLoadingMore => _isLoadingMore.value;
+  String get selectedFilter => _selectedFilter.value;
+  bool get showDepositForm => _showDepositFormView.value;
+  bool get showDepositHistory => _showDepositHistoryView.value;
+  bool get showDepositInstructions => _showInstructions.value;
+  
+  // User balance from auth service
+  double get userBalance => _authService.currentUser?.balance ?? 0.0;
+  
+  // Counts
+  int get pendingDepositsCount => pendingDeposits.length;
+  
+  // Payment method helpers
+  bool get showReferenceField => 
+      _selectedPaymentMethod.value == PaymentMethod.bizum.name || 
+      _selectedPaymentMethod.value == PaymentMethod.transfer.name;
+  
+  // Form action getters
+  void Function(String)? get onAmountChanged => (String value) => _validateAmount();
+  void Function()? get takeProofPhoto => () => selectProofImage(fromCamera: true);
+  void Function()? get submitDeposit => canSubmitDeposit ? createDepositRequest : null;
+  void Function()? get managePaymentMethods => () => Get.toNamed('/payment-methods');
+  void Function() get showDepositFormAction => () {
+    _showDepositFormView.value = true;
+    _showDepositHistoryView.value = false;
+  };
+  void Function() get showDepositHistoryAction => () {
+    _showDepositFormView.value = false;
+    _showDepositHistoryView.value = true;
+  };
+  
+  // VoidCallback methods for the view
+  void Function() get showDepositFormCallback => () {
+    _showDepositFormView.value = true;
+    _showDepositHistoryView.value = false;
+  };
+  
+  void Function() get selectProofImageCallback => () => selectProofImage(fromCamera: false);
+  
+  void Function() get removeProofImageCallback => () => removeProofImage();
+  void Function(String) get handleMenuAction => (String action) {
+    switch (action) {
+      case 'refresh':
+        refreshDeposits();
+        break;
+      case 'new_deposit':
+        goToNewDeposit();
+        break;
+      case 'filter':
+        _showDepositHistoryView.value = !_showDepositHistoryView.value;
+        break;
+    }
+  };
 
   @override
   void onInit() {
     super.onInit();
-    _initializeController();
+    loadDeposits();
+    loadAvailableBanks();
   }
 
   @override
   void onClose() {
     _disposeControllers();
     super.onClose();
-  }
-
-  // Inicializar controlador
-  Future<void> _initializeController() async {
-    await loadDeposits();
-    
-    // Configurar listeners
-    amountController.addListener(_validateAmount);
   }
 
   // Liberar controladores
@@ -113,15 +188,31 @@ class DepositController extends GetxController {
     await loadDeposits();
   }
 
+  // Cargar bancos disponibles
+  Future<void> loadAvailableBanks() async {
+    try {
+      final banks = await _paymentService.getBanks();
+      _availableBanks.assignAll(banks);
+    } catch (e) {
+      print('Error cargando bancos: $e');
+      _showError('Error cargando bancos: $e');
+    }
+  }
+  
+  // Seleccionar banco
+  void selectBank(BankModel bank) {
+    _selectedBankId.value = bank.id;
+  }
+  
   // Seleccionar método de pago
-  void selectPaymentMethod(String method) {
-    _selectedPaymentMethod.value = method;
-    _showInstructions.value = true;
-    _currentStep.value = 1;
+  void selectPaymentMethod(PaymentMethod method) {
+    _selectedPaymentMethod.value = method.name;
     
-    // Generar código de referencia automático para algunos métodos
-    if (method == 'bizum' || method == 'bank_transfer') {
-      referenceController.text = _generateReferenceCode();
+    // Mostrar instrucciones si es necesario
+    if (method == PaymentMethod.bizum || method == PaymentMethod.transfer) {
+      _showInstructions.value = true;
+    } else {
+      _showInstructions.value = false;
     }
   }
 
@@ -211,35 +302,6 @@ class DepositController extends GetxController {
     }
   }
 
-  // Procesar depósito con tarjeta (Stripe)
-  Future<void> processCardDeposit() async {
-    if (!depositFormKey.currentState!.validate()) return;
-
-    try {
-      _isSubmitting.value = true;
-
-      final result = await _paymentService.processCardDeposit(
-        amount: _depositAmount.value,
-        currency: 'eur',
-        description: 'Depósito SorteosMicro - €${_depositAmount.value}',
-      );
-
-      if (result.success) {
-        _showSuccess(result.message);
-        await _authService.refreshUser();
-        await loadDeposits();
-        _clearForm();
-        Get.back();
-      } else {
-        _showError(result.message);
-      }
-    } catch (e) {
-      _showError('Error procesando pago: $e');
-    } finally {
-      _isSubmitting.value = false;
-    }
-  }
-
   // Obtener instrucciones de pago
   String getPaymentInstructions(String method) {
     switch (method) {
@@ -251,7 +313,7 @@ class DepositController extends GetxController {
 4. Haz captura del comprobante
 5. Súbela aquí para verificación
         ''';
-      case 'bank_transfer':
+      case 'transfer':
         return '''
 1. Realiza transferencia a:
    IBAN: ${AppConfig.bankIban}
@@ -273,44 +335,42 @@ class DepositController extends GetxController {
   }
 
   // Obtener estado del depósito con color
-  Color getDepositStatusColor(String status) {
+  Color getDepositStatusColor(DepositStatus status) {
     switch (status) {
-      case 'pending':
+      case DepositStatus.pending:
         return Colors.orange;
-      case 'approved':
+      case DepositStatus.approved:
         return Colors.green;
-      case 'rejected':
+      case DepositStatus.rejected:
         return Colors.red;
-      default:
+      case DepositStatus.cancelled:
         return Colors.grey;
     }
   }
 
   // Obtener texto del estado
-  String getDepositStatusText(String status) {
+  String getDepositStatusText(DepositStatus status) {
     switch (status) {
-      case 'pending':
+      case DepositStatus.pending:
         return 'Pendiente';
-      case 'approved':
+      case DepositStatus.approved:
         return 'Aprobado';
-      case 'rejected':
+      case DepositStatus.rejected:
         return 'Rechazado';
-      default:
-        return 'Desconocido';
+      case DepositStatus.cancelled:
+        return 'Cancelado';
     }
   }
 
   // Obtener icono del método de pago
-  IconData getPaymentMethodIcon(String method) {
+  IconData getPaymentMethodIcon(PaymentMethod method) {
     switch (method) {
-      case 'bizum':
+      case PaymentMethod.bizum:
         return Icons.phone_android;
-      case 'bank_transfer':
+      case PaymentMethod.transfer:
         return Icons.account_balance;
-      case 'paypal':
+      case PaymentMethod.paypal:
         return Icons.payment;
-      case 'card':
-        return Icons.credit_card;
       default:
         return Icons.payment;
     }
@@ -319,7 +379,8 @@ class DepositController extends GetxController {
   // Navegar a nuevo depósito
   void goToNewDeposit() {
     _clearForm();
-    Get.toNamed('/new-deposit');
+    // Usamos la ruta directamente para evitar problemas de null check
+    Get.toNamed('/deposit-request');
   }
 
   // Ver detalles del depósito
@@ -333,6 +394,7 @@ class DepositController extends GetxController {
     referenceController.clear();
     notesController.clear();
     _selectedPaymentMethod.value = '';
+    _selectedBankId.value = '';
     _selectedProofImage.value = null;
     _proofImageUrl.value = '';
     _depositAmount.value = 0.0;
@@ -340,12 +402,8 @@ class DepositController extends GetxController {
     _currentStep.value = 0;
   }
 
-  // Generar código de referencia
-  String _generateReferenceCode() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = (timestamp % 10000).toString().padLeft(4, '0');
-    return 'DEP$random';
-  }
+  // Esta función muestra mensajes de error
+  // El método _showError ya está definido más arriba
 
   // Validadores
   String? validateAmount(String? value) {
@@ -371,12 +429,39 @@ class DepositController extends GetxController {
 
   String? validateReference(String? value) {
     if (_selectedPaymentMethod.value == 'bizum' || 
-        _selectedPaymentMethod.value == 'bank_transfer') {
+        _selectedPaymentMethod.value == 'transfer') {
       if (value == null || value.isEmpty) {
         return 'El código de referencia es requerido';
       }
     }
     return null;
+  }
+
+  // Additional methods for the view
+  void setFilter(String filter) {
+    _selectedFilter.value = filter;
+  }
+
+  String getPaymentMethodName(PaymentMethod method) {
+    switch (method) {
+      case PaymentMethod.bizum:
+        return 'Bizum';
+      case PaymentMethod.transfer:
+        return 'Transferencia';
+      case PaymentMethod.paypal:
+        return 'PayPal';
+    }
+  }
+
+  String getReferenceHelperText() {
+    switch (_selectedPaymentMethod.value) {
+      case 'bizum':
+        return 'Código que usarás como concepto en Bizum';
+      case 'transfer':
+        return 'Código que usarás como concepto en la transferencia';
+      default:
+        return 'Código de referencia del depósito';
+    }
   }
 
   // Métodos de utilidad
@@ -403,4 +488,20 @@ class DepositController extends GetxController {
       icon: const Icon(Icons.error, color: Colors.white),
     );
   }
+
+  void toggleDepositForm() {
+    _showDepositFormView.value = !_showDepositFormView.value;
+    _showDepositHistoryView.value = !_showDepositFormView.value;
+  }
+
+  void toggleDepositHistory() {
+    _showDepositHistoryView.value = !_showDepositHistoryView.value;
+    _showDepositFormView.value = !_showDepositHistoryView.value;
+  }
+
+  void toggleInstructions() {
+    _showInstructions.value = !_showInstructions.value;
+  }
+
+  String get depositReference => _proofImageUrl.value;
 } 

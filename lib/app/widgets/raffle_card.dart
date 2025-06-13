@@ -389,7 +389,7 @@ class RaffleCard extends StatelessWidget {
       case 'cancelled':
         return 'Cancelado';
       default:
-        return raffle.status.toUpperCase();
+        return raffle.status.name.toUpperCase();
     }
   }
 

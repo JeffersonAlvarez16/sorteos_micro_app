@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "307639370026",
+    "project_id": "sorteos-micro",
+    "storage_bucket": "sorteos-micro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:307639370026:android:b38336c339b878b7989e53",
+        "android_client_info": {
+          "package_name": "com.example.sorteos_micro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAAiceytoBUbQOHVwwe4Xvzqw4VN70m3LU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

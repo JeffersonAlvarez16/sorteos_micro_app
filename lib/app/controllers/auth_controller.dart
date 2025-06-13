@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import '../services/notification_service.dart';
+import '../services/biometric_service.dart';
 
 class AuthController extends GetxController {
   static AuthController get to => Get.find();
@@ -12,6 +13,7 @@ class AuthController extends GetxController {
   final AuthService _authService = AuthService.to;
   final StorageService _storageService = StorageService.to;
   final NotificationService _notificationService = NotificationService.to;
+  final BiometricService _biometricService = BiometricService.to;
 
   // Form controllers
   final TextEditingController emailController = TextEditingController();
@@ -23,7 +25,7 @@ class AuthController extends GetxController {
   // Form keys
   final GlobalKey<FormState> loginFormKey = GlobalKey<FormState>();
   final GlobalKey<FormState> registerFormKey = GlobalKey<FormState>();
-  final GlobalKey<FormState> resetPasswordFormKey = GlobalKey<FormState>();
+  final GlobalKey<FormState> recoveryFormKey = GlobalKey<FormState>();
 
   // Observable variables
   final RxBool _isLoading = false.obs;
@@ -31,27 +33,31 @@ class AuthController extends GetxController {
   final RxBool _obscureConfirmPassword = true.obs;
   final RxBool _rememberMe = false.obs;
   final RxBool _acceptTerms = false.obs;
-  final RxString _currentView = 'login'.obs; // login, register, reset
   final RxBool _isPasswordValid = false.obs;
   final RxBool _isEmailValid = false.obs;
+  final RxBool _isLoginMode = true.obs;
+  final RxBool _isRecoveryMode = false.obs;
 
   // Getters
   bool get isLoading => _isLoading.value;
   bool get obscurePassword => _obscurePassword.value;
   bool get obscureConfirmPassword => _obscureConfirmPassword.value;
-  bool get rememberMe => _rememberMe.value;
-  bool get acceptTerms => _acceptTerms.value;
-  String get currentView => _currentView.value;
+  RxBool get rememberMe => _rememberMe;
+  RxBool get acceptTerms => _acceptTerms;
   bool get isPasswordValid => _isPasswordValid.value;
   bool get isEmailValid => _isEmailValid.value;
+  RxBool get isLoginMode => _isLoginMode;
+  RxBool get isRecoveryMode => _isRecoveryMode;
   bool get canLogin => isEmailValid && isPasswordValid && !isLoading;
   bool get canRegister => isEmailValid && isPasswordValid && 
-                         fullNameController.text.isNotEmpty && acceptTerms && !isLoading;
+                         fullNameController.text.isNotEmpty && acceptTerms.value && !isLoading;
+  bool get canSendReset => isEmailValid && !isLoading;
 
   @override
   void onInit() {
     super.onInit();
-    _initializeController();
+    _checkLoggedInUser();
+    _tryBiometricLogin();
   }
 
   @override
@@ -82,9 +88,73 @@ class AuthController extends GetxController {
     phoneController.dispose();
   }
 
-  // Cambiar vista actual
-  void changeView(String view) {
-    _currentView.value = view;
+  // Verificar si hay un usuario logueado
+  Future<void> _checkLoggedInUser() async {
+    _isLoading.value = true;
+    await _authService.checkExistingSession();
+    _isLoading.value = false;
+  }
+
+  // Intentar autenticación biométrica
+  Future<void> _tryBiometricLogin() async {
+    // Solo intentar si no hay una sesión activa y si la biometría está disponible y habilitada
+    if (_authService.currentUser == null && 
+        _biometricService.isBiometricAvailable && 
+        _biometricService.isBiometricEnabled) {
+      
+      try {
+        final bool authenticated = await _biometricService.authenticate(
+          localizedReason: 'Autentícate para ingresar a tu cuenta',
+        );
+        
+        if (authenticated) {
+          // Si la autenticación biométrica es exitosa, intentar iniciar sesión con credenciales guardadas
+          final String? email = _storageService.userEmail;
+          final String? password = _storageService.userPassword;
+          
+          if (email != null && password != null) {
+            _isLoading.value = true;
+            
+            final result = await _authService.login(
+              email: email,
+              password: password,
+              rememberMe: true, // Si usa biometría, queremos recordar la sesión
+            );
+            
+            if (result.success) {
+              _showSuccess('Sesión iniciada correctamente');
+              Get.offAllNamed('/home');
+            } else {
+              _showError('No se pudo iniciar sesión automáticamente');
+            }
+            
+            _isLoading.value = false;
+          }
+        }
+      } catch (e) {
+        print('Error en autenticación biométrica: $e');
+      }
+    }
+  }
+
+  // Alternar modo de autenticación
+  void toggleAuthMode() {
+    _isLoginMode.value = !_isLoginMode.value;
+    _isRecoveryMode.value = false;
+    _clearForm();
+  }
+
+  // Ir a recuperación de contraseña
+  void goToRecovery() {
+    _isRecoveryMode.value = true;
+    _isLoginMode.value = false;
+    _clearForm();
+  }
+
+  // Volver al login
+  void backToLogin() {
+    _isLoginMode.value = true;
+    _isRecoveryMode.value = false;
     _clearForm();
   }
 
@@ -98,13 +168,38 @@ class AuthController extends GetxController {
   }
 
   // Alternar recordar sesión
-  void toggleRememberMe() {
-    _rememberMe.value = !_rememberMe.value;
+  void toggleRememberMe(bool? value) {
+    if (value != null) {
+      _rememberMe.value = value;
+    }
   }
 
   // Alternar aceptar términos
-  void toggleAcceptTerms() {
-    _acceptTerms.value = !_acceptTerms.value;
+  void toggleAcceptTerms(bool? value) {
+    if (value != null) {
+      _acceptTerms.value = value;
+    }
+  }
+
+  // Callbacks para cambios en los campos
+  void onEmailChanged(String value) {
+    _validateEmail();
+  }
+
+  void onPasswordChanged(String value) {
+    _validatePassword();
+  }
+
+  void onFullNameChanged(String value) {
+    // Trigger validation if needed
+  }
+
+  void onPhoneChanged(String value) {
+    // Trigger validation if needed
+  }
+
+  void onConfirmPasswordChanged(String value) {
+    // Trigger validation if needed
   }
 
   // Validar email en tiempo real
@@ -115,6 +210,17 @@ class AuthController extends GetxController {
   // Validar contraseña en tiempo real
   void _validatePassword() {
     _isPasswordValid.value = passwordController.text.length >= 6;
+  }
+
+  // Obtener subtítulo según el modo actual
+  String _getSubtitle() {
+    if (_isRecoveryMode.value) {
+      return 'Recupera tu contraseña';
+    } else if (_isLoginMode.value) {
+      return 'Bienvenido de vuelta';
+    } else {
+      return 'Crea tu cuenta';
+    }
   }
 
   // Login
@@ -134,7 +240,7 @@ class AuthController extends GetxController {
         _showSuccess(result.message);
         
         // Suscribirse a notificaciones
-        await _notificationService.subscribeToTopics();
+        //await _notificationService.subscribeToTopics();
         
         // Navegar al home
         Get.offAllNamed('/home');
@@ -169,8 +275,7 @@ class AuthController extends GetxController {
 
       if (result.success) {
         _showSuccess(result.message);
-        _currentView.value = 'login';
-        _clearForm();
+        toggleAuthMode(); // Volver al login
       } else {
         _showError(result.message);
       }
@@ -181,9 +286,9 @@ class AuthController extends GetxController {
     }
   }
 
-  // Recuperar contraseña
-  Future<void> resetPassword() async {
-    if (!resetPasswordFormKey.currentState!.validate()) return;
+  // Enviar correo de recuperación de contraseña
+  Future<void> sendPasswordReset() async {
+    if (!recoveryFormKey.currentState!.validate()) return;
 
     try {
       _isLoading.value = true;
@@ -192,8 +297,7 @@ class AuthController extends GetxController {
 
       if (result.success) {
         _showSuccess(result.message);
-        _currentView.value = 'login';
-        _clearForm();
+        backToLogin();
       } else {
         _showError(result.message);
       }
@@ -204,14 +308,29 @@ class AuthController extends GetxController {
     }
   }
 
-  // Login con Google (placeholder para futura implementación)
-  Future<void> loginWithGoogle() async {
-    _showInfo('Próximamente disponible');
+  // Login con Google
+  Future<void> signInWithGoogle() async {
+    _showInfo('Login con Google próximamente disponible');
   }
 
-  // Login con Apple (placeholder para futura implementación)
-  Future<void> loginWithApple() async {
-    _showInfo('Próximamente disponible');
+  // Login con Apple
+  Future<void> signInWithApple() async {
+    _showInfo('Login con Apple próximamente disponible');
+  }
+
+  // Abrir soporte
+  void openSupport() {
+    Get.toNamed('/support');
+  }
+
+  // Abrir política de privacidad
+  void openPrivacyPolicy() {
+    Get.toNamed('/privacy');
+  }
+
+  // Abrir términos y condiciones
+  void openTerms() {
+    Get.toNamed('/terms');
   }
 
   // Limpiar formulario
@@ -315,16 +434,6 @@ class AuthController extends GetxController {
     if (strength < 0.6) return 'Regular';
     if (strength < 0.8) return 'Buena';
     return 'Fuerte';
-  }
-
-  // Navegar a términos y condiciones
-  void goToTermsAndConditions() {
-    Get.toNamed('/terms');
-  }
-
-  // Navegar a política de privacidad
-  void goToPrivacyPolicy() {
-    Get.toNamed('/privacy');
   }
 
   // Verificar si hay sesión activa

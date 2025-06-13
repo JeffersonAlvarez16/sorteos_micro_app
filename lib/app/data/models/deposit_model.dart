@@ -118,6 +118,7 @@ class DepositModel {
   bool get isRejected => status == DepositStatus.rejected;
   bool get isCancelled => status == DepositStatus.cancelled;
   bool get isProcessed => isApproved || isRejected;
+  String? get notes => adminNotes; // Alias para compatibilidad
 
   String get statusText {
     switch (status) {

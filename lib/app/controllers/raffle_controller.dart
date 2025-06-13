@@ -212,7 +212,7 @@ class RaffleController extends GetxController {
   }
 
   // Mostrar selector de tickets
-  void showTicketSelector() {
+  void openTicketSelector() {
     if (!canPurchaseTickets) {
       if (currentUser == null) {
         _showError('Debes iniciar sesión');
@@ -351,17 +351,17 @@ class RaffleController extends GetxController {
     if (currentRaffle == null) return '';
     
     switch (currentRaffle!.status) {
-      case 'active':
+      case RaffleStatus.active:
         if (currentRaffle!.endDate.isBefore(DateTime.now())) {
           return 'Finalizado';
         }
         return 'Activo';
-      case 'completed':
+      case RaffleStatus.completed:
         return 'Completado';
-      case 'cancelled':
+      case RaffleStatus.cancelled:
         return 'Cancelado';
       default:
-        return currentRaffle!.status;
+        return 'Desconocido';
     }
   }
 
@@ -457,4 +457,74 @@ class RaffleController extends GetxController {
       icon: const Icon(Icons.info, color: Colors.white),
     );
   }
+
+  // Getters adicionales para las vistas
+  int get userTicketCount => _userTickets.length;
+  double get totalInvestment => userTicketCount * (currentRaffle?.ticketPrice ?? 0.0);
+  
+  // Métodos de navegación de tickets
+  void Function() get decreaseTicketCount => () {
+    if (selectedTicketCount > 1) {
+      _selectedTicketCount.value--;
+    }
+  };
+  
+  void Function() get increaseTicketCount => () {
+    if (selectedTicketCount < maxPurchasableTickets) {
+      _selectedTicketCount.value++;
+    }
+  };
+  
+  void setTicketCount(int count) {
+    changeTicketCount(count);
+  }
+  
+  // Métodos para formatear
+  String formatDate(DateTime date) {
+    return _formatDate(date);
+  }
+  
+  String formatTimeAgo(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    
+    if (difference.inDays > 0) {
+      return 'hace ${difference.inDays} día${difference.inDays > 1 ? 's' : ''}';
+    } else if (difference.inHours > 0) {
+      return 'hace ${difference.inHours} hora${difference.inHours > 1 ? 's' : ''}';
+    } else if (difference.inMinutes > 0) {
+      return 'hace ${difference.inMinutes} minuto${difference.inMinutes > 1 ? 's' : ''}';
+    } else {
+      return 'hace unos segundos';
+    }
+  }
+  
+  // Participantes y estadísticas
+  List<Map<String, dynamic>> get recentParticipants => raffleStats['recent_participants'] ?? [];
+  bool get isLoadingParticipants => _isLoading.value;
+  
+  void Function() get viewAllParticipants => () {
+    Get.toNamed('/raffle-participants', arguments: {'raffleId': currentRaffle?.id});
+  };
+  
+  void Function() get viewRules => () {
+    viewRaffleRules();
+  };
+  
+  void Function(String) get handleMenuAction => (String action) {
+    switch (action) {
+      case 'refresh':
+        refreshData();
+        break;
+      case 'share':
+        shareRaffle();
+        break;
+      case 'rules':
+        viewRaffleRules();
+        break;
+      case 'history':
+        viewParticipationHistory();
+        break;
+    }
+  };
 } 

@@ -8,10 +8,10 @@ import 'notification_service.dart';
 
 class AuthService extends GetxService {
   static AuthService get to => Get.find();
-  
+
   final SupabaseClient _supabase = Supabase.instance.client;
   final StorageService _storage = StorageService.to;
-  
+
   final Rx<UserModel?> _currentUser = Rx<UserModel?>(null);
   final RxBool _isLoading = false.obs;
   final RxBool _isAuthenticated = false.obs;
@@ -30,7 +30,7 @@ class AuthService extends GetxService {
 
     // Verificar sesión existente
     await _checkExistingSession();
-    
+
     return this;
   }
 
@@ -38,12 +38,23 @@ class AuthService extends GetxService {
   Future<void> _checkExistingSession() async {
     try {
       _isLoading.value = true;
-      
+
       final session = _supabase.auth.currentSession;
-      if (session != null && _storage.isLoggedIn) {
-        await _loadCurrentUser();
-        _isAuthenticated.value = true;
+      
+      // Si hay sesión en Supabase
+      if (session != null) {
+        // Si está marcado recordar sesión o está marcado como logged in
+        if (_storage.rememberMe || _storage.isLoggedIn) {
+          await _loadCurrentUser();
+          _isAuthenticated.value = true;
+        } else {
+          // Si no debemos recordar la sesión, cerrarla
+          await _supabase.auth.signOut();
+          _storage.clearUserSession();
+          _isAuthenticated.value = false;
+        }
       } else {
+        // No hay sesión activa
         _storage.clearUserSession();
         _isAuthenticated.value = false;
       }
@@ -87,12 +98,12 @@ class AuthService extends GetxService {
       if (user != null) {
         final response = await _supabase
             .from('users')
-            .select('*, stats(*)')
+            .select('*, user_stats(*)')
             .eq('id', user.id)
             .single();
 
         _currentUser.value = UserModel.fromJson(response);
-        
+
         // Guardar en storage
         _storage.saveUserSession(
           userId: user.id,
@@ -115,11 +126,15 @@ class AuthService extends GetxService {
       if (fcmToken != null && currentUser != null) {
         await _supabase
             .from('users')
-            .update({'fcm_token': fcmToken})
-            .eq('id', currentUser!.id);
+            .update({'fcm_token': fcmToken}).eq('id', currentUser!.id);
+      } else {
+        // Skip FCM token update if not available
+        print(
+            'Skipping FCM token update: token=${fcmToken != null}, user=${currentUser != null}');
       }
     } catch (e) {
       print('Error updating FCM token: $e');
+      // Continue even if FCM token update fails
     }
   }
 
@@ -138,7 +153,8 @@ class AuthService extends GetxService {
         return AuthResult.error('Email no válido');
       }
       if (password.length < 6) {
-        return AuthResult.error('La contraseña debe tener al menos 6 caracteres');
+        return AuthResult.error(
+            'La contraseña debe tener al menos 6 caracteres');
       }
       if (fullName.trim().isEmpty) {
         return AuthResult.error('El nombre completo es requerido');
@@ -151,6 +167,7 @@ class AuthService extends GetxService {
         data: {
           'full_name': fullName,
           'phone': phone,
+          'email_verified': true,
         },
       );
 
@@ -185,7 +202,7 @@ class AuthService extends GetxService {
   }) async {
     try {
       // Crear usuario en la tabla users
-      await _supabase.from('users').insert({
+      await _supabase.from('users').upsert({
         'id': userId,
         'email': email,
         'full_name': fullName,
@@ -197,17 +214,25 @@ class AuthService extends GetxService {
       });
 
       // Crear estadísticas iniciales
-      await _supabase.from('user_stats').insert({
-        'user_id': userId,
-        'total_tickets_purchased': 0,
-        'total_raffles_participated': 0,
-        'total_wins': 0,
-        'total_winnings': 0.0,
-        'total_spent': 0.0,
-        'current_streak': 0,
-        'max_streak': 0,
-        'win_rate': 0.0,
-      });
+      final existingStats = await _supabase
+          .from('user_stats')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (existingStats == null) {
+        await _supabase.from('user_stats').insert({
+          'user_id': userId,
+          'total_tickets_purchased': 0,
+          'total_raffles_participated': 0,
+          'total_wins': 0,
+          'total_winnings': 0.0,
+          'total_spent': 0.0,
+          'current_streak': 0,
+          'max_streak': 0,
+          'win_rate': 0.0,
+        });
+      }
     } catch (e) {
       print('Error creating user profile: $e');
       throw e;
@@ -238,12 +263,9 @@ class AuthService extends GetxService {
       );
 
       if (response.user != null) {
-        // Actualizar último login
-        await _supabase
-            .from('users')
-            .update({'last_login': DateTime.now().toIso8601String()})
-            .eq('id', response.user!.id);
-
+        // Cargar datos del usuario
+        await _loadCurrentUser();
+        
         // Guardar preferencia de recordar
         _storage.rememberMe = rememberMe;
 
@@ -264,24 +286,22 @@ class AuthService extends GetxService {
   Future<void> logout() async {
     try {
       _isLoading.value = true;
-      
+
       // Limpiar FCM token
       if (currentUser != null) {
         await _supabase
             .from('users')
-            .update({'fcm_token': null})
-            .eq('id', currentUser!.id);
+            .update({'fcm_token': null}).eq('id', currentUser!.id);
       }
 
       // Logout de Supabase
       await _supabase.auth.signOut();
-      
+
       // Limpiar storage
       _storage.clearUserSession();
-      
+
       // Limpiar notificaciones
       await NotificationService.to.clearAllNotifications();
-      
     } catch (e) {
       print('Error during logout: $e');
     } finally {
@@ -328,10 +348,7 @@ class AuthService extends GetxService {
       if (avatar != null) updates['avatar'] = avatar;
 
       if (updates.isNotEmpty) {
-        await _supabase
-            .from('users')
-            .update(updates)
-            .eq('id', currentUser!.id);
+        await _supabase.from('users').update(updates).eq('id', currentUser!.id);
 
         // Recargar usuario
         await _loadCurrentUser();
@@ -354,7 +371,8 @@ class AuthService extends GetxService {
       _isLoading.value = true;
 
       if (newPassword.length < 6) {
-        return AuthResult.error('La nueva contraseña debe tener al menos 6 caracteres');
+        return AuthResult.error(
+            'La nueva contraseña debe tener al menos 6 caracteres');
       }
 
       // Verificar contraseña actual
@@ -419,4 +437,4 @@ class AuthResult {
 
   factory AuthResult.success(String message) => AuthResult._(true, message);
   factory AuthResult.error(String message) => AuthResult._(false, message);
-} 
+}

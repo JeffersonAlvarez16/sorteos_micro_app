@@ -44,6 +44,15 @@ class ProfileController extends GetxController {
   final RxBool _notificationsEnabled = true.obs;
   final RxString _selectedLanguage = 'es'.obs;
   final RxString _selectedTheme = 'light'.obs;
+  final RxBool _pushNotificationsEnabled = true.obs;
+  final RxBool _emailNotificationsEnabled = true.obs;
+  final RxBool _biometricEnabled = false.obs;
+  final RxBool _isSaving = false.obs;
+
+  // Form controllers adicionales
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController bioController = TextEditingController();
 
   // Getters
   UserModel? get currentUser => _authService.currentUser;
@@ -58,6 +67,11 @@ class ProfileController extends GetxController {
   bool get notificationsEnabled => _notificationsEnabled.value;
   String get selectedLanguage => _selectedLanguage.value;
   String get selectedTheme => _selectedTheme.value;
+  bool get pushNotificationsEnabled => _pushNotificationsEnabled.value;
+  bool get emailNotificationsEnabled => _emailNotificationsEnabled.value;
+  bool get biometricEnabled => _biometricEnabled.value;
+  bool get isSaving => _isSaving.value;
+  GlobalKey<FormState> get formKey => profileFormKey;
 
   // Estadísticas calculadas
   double get winRate => userStats['win_rate']?.toDouble() ?? 0.0;
@@ -68,6 +82,90 @@ class ProfileController extends GetxController {
   double get netResult => totalWinnings - totalSpent;
   int get currentStreak => userStats['current_streak'] ?? 0;
   int get maxStreak => userStats['max_streak'] ?? 0;
+
+  // Getters adicionales para compatibilidad con la vista
+  UserModel? get user => currentUser; // Alias para currentUser
+  bool get isDarkMode => _selectedTheme.value == 'dark';
+  
+  // Métodos de navegación y acciones
+  void Function() get changeAvatar => () => selectAvatarImage();
+  void Function() get editProfile => () => startEditingProfile();
+  
+  void Function(String) get handleMenuAction => (String action) {
+    switch (action) {
+      case 'settings':
+        goToSettings();
+        break;
+      case 'help':
+        goToHelp();
+        break;
+      case 'terms':
+        goToTerms();
+        break;
+      case 'privacy':
+        goToPrivacy();
+        break;
+      case 'logout':
+        logout();
+        break;
+    }
+  };
+  
+  void Function() get viewMyRaffles => () {
+    Get.toNamed('/my-raffles');
+  };
+  
+  void Function() get viewDepositHistory => () {
+    Get.toNamed('/deposits');
+  };
+  
+  void Function() get managePaymentMethods => () {
+    Get.toNamed('/payment-methods');
+  };
+  
+  void Function() get configureNotifications => () {
+    Get.toNamed('/notification-settings');
+  };
+  
+  void Function() get toggleDarkMode => () {
+    final newTheme = _selectedTheme.value == 'dark' ? 'light' : 'dark';
+    changeTheme(newTheme);
+  };
+
+  // Additional methods
+  void Function() get verifyAccount => () {
+    Get.toNamed('/verify-account');
+  };
+  
+  void Function() get exportData => () {
+    _showInfo('Exportando datos...');
+  };
+  
+  void Function() get saveProfile => () => updateProfile();
+  
+  void togglePushNotifications(bool value) {
+    _pushNotificationsEnabled.value = value;
+    // TODO: Implement save to preferences
+    _showSuccess(value 
+      ? 'Notificaciones push activadas' 
+      : 'Notificaciones push desactivadas');
+  }
+  
+  void toggleEmailNotifications(bool value) {
+    _emailNotificationsEnabled.value = value;
+    // TODO: Implement save to preferences
+    _showSuccess(value 
+      ? 'Notificaciones por correo electrónico activadas' 
+      : 'Notificaciones por correo electrónico desactivadas');
+  }
+  
+  void toggleBiometric(bool value) {
+    _biometricEnabled.value = value;
+    // TODO: Implement save to preferences and auth setup
+    _showSuccess(value 
+      ? 'Autenticación biométrica activada' 
+      : 'Autenticación biométrica desactivada');
+  }
 
   @override
   void onInit() {
@@ -94,8 +192,10 @@ class ProfileController extends GetxController {
     _selectedTheme.value = _storageService.themeMode;
     
     if (currentUser != null) {
-      fullNameController.text = currentUser!.fullName;
+      fullNameController.text = currentUser!.fullName ?? '';
       phoneController.text = currentUser!.phone ?? '';
+      nameController.text = currentUser!.fullName ?? '';
+      emailController.text = currentUser!.email;
     }
   }
 
@@ -156,7 +256,7 @@ class ProfileController extends GetxController {
   void startEditingProfile() {
     _isEditingProfile.value = true;
     if (currentUser != null) {
-      fullNameController.text = currentUser!.fullName;
+      fullNameController.text = currentUser!.fullName ?? '';
       phoneController.text = currentUser!.phone ?? '';
     }
   }
@@ -166,7 +266,7 @@ class ProfileController extends GetxController {
     _isEditingProfile.value = false;
     _selectedAvatarImage.value = null;
     if (currentUser != null) {
-      fullNameController.text = currentUser!.fullName;
+      fullNameController.text = currentUser!.fullName ?? '';
       phoneController.text = currentUser!.phone ?? '';
     }
   }
@@ -209,6 +309,7 @@ class ProfileController extends GetxController {
 
     try {
       _isUpdating.value = true;
+      _isSaving.value = true;
 
       String? avatarUrl;
       
@@ -244,6 +345,7 @@ class ProfileController extends GetxController {
       _showError('Error actualizando perfil: $e');
     } finally {
       _isUpdating.value = false;
+      _isSaving.value = false;
     }
   }
 
@@ -379,6 +481,9 @@ class ProfileController extends GetxController {
     currentPasswordController.dispose();
     newPasswordController.dispose();
     confirmPasswordController.dispose();
+    nameController.dispose();
+    emailController.dispose();
+    bioController.dispose();
   }
 
   // Validadores
@@ -527,5 +632,17 @@ class ProfileController extends GetxController {
       duration: const Duration(seconds: 3),
       icon: const Icon(Icons.info, color: Colors.white),
     );
+  }
+
+  // Validation methods
+  String? validateName(String? value) => validateFullName(value);
+  String? validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'El email es requerido';
+    }
+    if (!GetUtils.isEmail(value)) {
+      return 'Ingresa un email válido';
+    }
+    return null;
   }
 } 

@@ -17,7 +17,18 @@ class AppConfig {
   static const double minDepositAmount = 5.0;
   static const double maxDepositAmount = 500.0;
   static const int maxTicketsPerUser = 50;
+  static const int maxTicketsPerPurchase = 10;
   static const int minParticipantsToStart = 10;
+  static const int refreshIntervalMinutes = 5;
+  
+  // Payment Methods Configuration
+  static const String bizumNumber = '+34600123456';
+  static const String bankIban = 'ES12 1234 5678 9012 3456 7890';
+  static const String bankAccountName = 'SORTEOS MICRO SL';
+  static const String paypalEmail = 'pagos@sorteosmicro.com';
+  
+  // Backend Configuration
+  static const String backendUrl = 'https://api.sorteosmicro.com';
   
   // Payment Methods
   static const List<String> paymentMethods = [
@@ -58,6 +69,13 @@ class AppConfig {
   static const String newRafflesTopic = 'new_raffles';
   static const String winnersAnnouncementTopic = 'winners';
   static const String depositsApprovedTopic = 'deposits_approved';
+  
+  // All notification topics
+  static const List<String> notificationTopics = [
+    newRafflesTopic,
+    winnersAnnouncementTopic,
+    depositsApprovedTopic,
+  ];
   
   // Social Media
   static const String instagramUrl = 'https://instagram.com/sorteosmicro';

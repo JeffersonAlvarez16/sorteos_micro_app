@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class AppDimensions {
   // Espaciados base
   static const double spacing2 = 2.0;

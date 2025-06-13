@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../controllers/home_controller.dart';
 import '../widgets/raffle_card.dart';
-import '../widgets/loading_widget.dart';
-import '../widgets/empty_state_widget.dart';
-import '../widgets/custom_button.dart';
-import '../widgets/stat_card.dart';
 
 class HomeView extends GetView<HomeController> {
   const HomeView({Key? key}) : super(key: key);
@@ -15,373 +12,289 @@ class HomeView extends GetView<HomeController> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
+    // Configurar el estilo de la barra de estado para un look minimalista
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+    ));
+    
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: Colors.grey[50], // Color de fondo muy sutil
       body: RefreshIndicator(
+        color: Colors.black54, // Color sobrio para el indicador de recarga
         onRefresh: controller.refreshData,
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            // App Bar personalizado
-            _buildSliverAppBar(theme),
+            _buildAppBar(theme),
             
-            // Estadísticas rápidas
+            // Estadísticas rápidas con diseño minimalista
             SliverToBoxAdapter(
               child: _buildQuickStats(theme),
             ),
             
-            // Filtros y búsqueda
+            // Filtros con diseño minimalista
             SliverToBoxAdapter(
               child: _buildFiltersSection(theme),
             ),
             
-            // Lista de sorteos
-            _buildRafflesList(theme),
+            // Lista de sorteos con diseño minimalista
+            _buildRafflesList(),
           ],
         ),
       ),
-      floatingActionButton: _buildFloatingActionButton(theme),
-      bottomNavigationBar: _buildBottomNavigationBar(theme),
+      floatingActionButton: _buildFloatingActionButton(),
+      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
-
-  Widget _buildSliverAppBar(ThemeData theme) {
+  
+  // AppBar minimalista con título simple y botones
+  SliverAppBar _buildAppBar(ThemeData theme) {
     return SliverAppBar(
-      expandedHeight: 120.0,
-      floating: false,
-      pinned: true,
-      backgroundColor: theme.colorScheme.primary,
-      foregroundColor: theme.colorScheme.onPrimary,
-      flexibleSpace: FlexibleSpaceBar(
-        title: Obx(() => Text(
-          controller.isSearching.value ? 'Buscar sorteos' : 'Sorteos',
-          style: TextStyle(
-            color: theme.colorScheme.onPrimary,
-            fontWeight: FontWeight.bold,
-          ),
-        )),
-        background: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                theme.colorScheme.primary,
-                theme.colorScheme.primary.withOpacity(0.8),
-              ],
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Obx(() => Text(
-                          controller.getGreeting(),
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: theme.colorScheme.onPrimary.withOpacity(0.9),
-                          ),
-                        )),
-                      ),
-                      IconButton(
-                        onPressed: controller.goToNotifications,
-                        icon: Stack(
-                          children: [
-                            Icon(
-                              Icons.notifications_outlined,
-                              color: theme.colorScheme.onPrimary,
-                            ),
-                            Obx(() => controller.hasUnreadNotifications.value
-                              ? Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                )
-                              : const SizedBox.shrink()),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+      floating: true,
+      snap: true,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      title: Text(
+        'Sorteos',
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w500,
+          color: Colors.black87,
         ),
       ),
       actions: [
-        Obx(() => IconButton(
-          onPressed: controller.toggleSearch,
-          icon: Icon(
-            controller.isSearching.value ? Icons.close : Icons.search,
-          ),
-        )),
-        PopupMenuButton<String>(
-          onSelected: controller.handleMenuAction,
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'profile',
-              child: ListTile(
-                leading: Icon(Icons.person),
-                title: Text('Mi perfil'),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'deposits',
-              child: ListTile(
-                leading: Icon(Icons.account_balance_wallet),
-                title: Text('Mis depósitos'),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'history',
-              child: ListTile(
-                leading: Icon(Icons.history),
-                title: Text('Historial'),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'settings',
-              child: ListTile(
-                leading: Icon(Icons.settings),
-                title: Text('Configuración'),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ],
+        IconButton(
+          icon: const Icon(Icons.search, color: Colors.black54),
+          onPressed: () => Get.toNamed('/search'),
+        ),
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined, color: Colors.black54),
+          onPressed: controller.goToNotifications,
         ),
       ],
     );
   }
 
+  // Estadísticas rápidas del usuario
   Widget _buildQuickStats(ThemeData theme) {
-    return Obx(() {
-      if (controller.isLoadingStats.value) {
-        return const Padding(
-          padding: EdgeInsets.all(16.0),
-          child: LoadingWidget(message: 'Cargando estadísticas...'),
-        );
-      }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildStatCard(
+              'Participaciones',
+              '${controller.userParticipationsCount}',
+              Icons.confirmation_number_outlined,
+              theme,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildStatCard(
+              'Saldo',
+              '\$${controller.userBalance.toStringAsFixed(2)}',
+              Icons.account_balance_wallet_outlined,
+              theme,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-      return Container(
+  // Tarjeta individual de estadística
+  Widget _buildStatCard(String title, String value, IconData icon, ThemeData theme) {
+    return Card(
+      elevation: 0,
+      color: Colors.grey[100],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
+        child: Column(
           children: [
-            Expanded(
-              child: CompactStatCard(
-                title: 'Sorteos activos',
-                value: controller.activeRafflesCount.value.toString(),
-                icon: Icons.celebration,
-                color: Colors.green,
-                onTap: () => controller.filterByStatus('active'),
+            Icon(icon, color: Colors.black54, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CompactStatCard(
-                title: 'Mis participaciones',
-                value: controller.userParticipationsCount.value.toString(),
-                icon: Icons.confirmation_number,
-                color: theme.colorScheme.primary,
-                onTap: controller.goToMyParticipations,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CompactStatCard(
-                title: 'Balance',
-                value: '€${controller.userBalance.value.toStringAsFixed(2)}',
-                icon: Icons.account_balance_wallet,
-                color: Colors.blue,
-                onTap: controller.goToDeposits,
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.black54,
               ),
             ),
           ],
         ),
-      );
-    });
+      ),
+    );
   }
 
+  // Sección de filtros
   Widget _buildFiltersSection(ThemeData theme) {
-    return Obx(() => AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      height: controller.isSearching.value ? 120 : 60,
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Barra de búsqueda
-          if (controller.isSearching.value) ...[
-            Container(
-              height: 50,
-              child: TextField(
-                controller: controller.searchController,
-                onChanged: controller.onSearchChanged,
-                decoration: InputDecoration(
-                  hintText: 'Buscar sorteos...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-                    ? IconButton(
-                        onPressed: controller.clearSearch,
-                        icon: const Icon(Icons.clear),
-                      )
-                    : const SizedBox.shrink()),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(25),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: theme.colorScheme.surface,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-                ),
-              ),
+          Text(
+            'Categorías',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
             ),
-            const SizedBox(height: 10),
-          ],
-          
-          // Filtros de estado
-          SizedBox(
-            height: 50,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
               children: [
                 _buildFilterChip('Todos', 'all', theme),
-                const SizedBox(width: 8),
                 _buildFilterChip('Activos', 'active', theme),
-                const SizedBox(width: 8),
                 _buildFilterChip('Completados', 'completed', theme),
-                const SizedBox(width: 8),
                 _buildFilterChip('Mis participaciones', 'my_participations', theme),
               ],
             ),
           ),
         ],
       ),
-    ));
+    );
   }
 
-  Widget _buildFilterChip(String label, String value, ThemeData theme) {
-    return Obx(() => FilterChip(
-      label: Text(label),
-      selected: controller.selectedFilter.value == value,
-      onSelected: (_) => controller.setFilter(value),
-      backgroundColor: theme.colorScheme.surface,
-      selectedColor: theme.colorScheme.primary.withOpacity(0.2),
-      checkmarkColor: theme.colorScheme.primary,
-      labelStyle: TextStyle(
-        color: controller.selectedFilter.value == value
-          ? theme.colorScheme.primary
-          : theme.colorScheme.onSurface,
-        fontWeight: controller.selectedFilter.value == value
-          ? FontWeight.w600
-          : FontWeight.normal,
-      ),
-    ));
+  // Chip de filtro individual
+  Widget _buildFilterChip(String label, String filterValue, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: Obx(() => ChoiceChip(
+        label: Text(label),
+        selected: controller.selectedFilter == filterValue,
+        selectedColor: Colors.black12,
+        backgroundColor: Colors.grey[100],
+        labelStyle: theme.textTheme.bodyMedium?.copyWith(
+          color: controller.selectedFilter == filterValue ? Colors.black87 : Colors.black54,
+        ),
+        onSelected: (_) => controller.setFilter(filterValue),
+      )),
+    );
   }
 
-  Widget _buildRafflesList(ThemeData theme) {
+  // Lista de sorteos
+  Widget _buildRafflesList() {
     return Obx(() {
-      if (controller.isLoading.value && controller.filteredRaffles.isEmpty) {
+      if (controller.isLoading && controller.filteredRaffles.isEmpty) {
         return const SliverFillRemaining(
-          child: LoadingWidget(message: 'Cargando sorteos...'),
+          child: Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.black54),
+            ),
+          ),
         );
       }
-
+      
       if (controller.filteredRaffles.isEmpty) {
-        if (controller.searchQuery.value.isNotEmpty) {
-          return SliverFillRemaining(
-            child: NoSearchResultsWidget(
-              searchQuery: controller.searchQuery.value,
-              onClearSearch: controller.clearSearch,
-            ),
-          );
-        }
-        
         return SliverFillRemaining(
-          child: NoRafflesWidget(
-            onRefresh: controller.refreshData,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.search_off_outlined,
+                  size: 64,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No hay sorteos disponibles',
+                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Intenta más tarde o cambia los filtros',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         );
       }
 
-      return SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            if (index == controller.filteredRaffles.length) {
-              // Indicador de carga al final si hay más datos
-              return Obx(() => controller.isLoadingMore.value
-                ? const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: LoadingWidget(message: 'Cargando más sorteos...'),
-                  )
-                : const SizedBox.shrink());
-            }
-
-            final raffle = controller.filteredRaffles[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: RaffleCard(
-                raffle: raffle,
-                onTap: () => controller.goToRaffleDetail(raffle.id),
-                showQuickBuy: true,
-              ),
-            );
-          },
-          childCount: controller.filteredRaffles.length + 1,
+      return SliverPadding(
+        padding: const EdgeInsets.all(16.0),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              if (index >= controller.filteredRaffles.length) {
+                return null;
+              }
+              
+              final raffle = controller.filteredRaffles[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: RaffleCard(raffle: raffle),
+              );
+            },
+            childCount: controller.filteredRaffles.length,
+          ),
         ),
       );
     });
   }
 
-  Widget _buildFloatingActionButton(ThemeData theme) {
-    return Obx(() => FloatingActionCustomButton(
-      onPressed: controller.goToDeposits,
-      icon: Icons.add,
-      tooltip: 'Hacer depósito',
-      isExtended: !controller.isScrollingDown.value,
-      label: 'Depositar',
-      backgroundColor: theme.colorScheme.secondary,
-    ));
+  // Botón flotante para hacer depósitos
+  Widget _buildFloatingActionButton() {
+    return FloatingActionButton(
+      backgroundColor: Colors.black87,
+      elevation: 2,
+      child: const Icon(Icons.account_balance_wallet_outlined, color: Colors.white),
+      onPressed: () => Get.toNamed('/deposit'),
+    );
   }
 
-  Widget _buildBottomNavigationBar(ThemeData theme) {
-    return Obx(() => BottomNavigationBar(
-      currentIndex: controller.currentBottomNavIndex.value,
-      onTap: controller.onBottomNavTap,
+  // Barra de navegación inferior
+  Widget _buildBottomNavigationBar() {
+    return BottomNavigationBar(
+      currentIndex: 0,
+      selectedItemColor: Colors.black87,
+      unselectedItemColor: Colors.black38,
+      showSelectedLabels: true,
+      showUnselectedLabels: true,
       type: BottomNavigationBarType.fixed,
-      backgroundColor: theme.colorScheme.surface,
-      selectedItemColor: theme.colorScheme.primary,
-      unselectedItemColor: theme.colorScheme.onSurface.withOpacity(0.6),
       items: const [
         BottomNavigationBarItem(
-          icon: Icon(Icons.home),
+          icon: Icon(Icons.home_outlined),
+          activeIcon: Icon(Icons.home),
           label: 'Inicio',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.celebration),
-          label: 'Sorteos',
+          icon: Icon(Icons.explore_outlined),
+          activeIcon: Icon(Icons.explore),
+          label: 'Explorar',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.account_balance_wallet),
-          label: 'Depósitos',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
+          icon: Icon(Icons.person_outline),
+          activeIcon: Icon(Icons.person),
           label: 'Perfil',
         ),
       ],
-    ));
+      onTap: (index) {
+        switch (index) {
+          case 0:
+            // Ya estamos en Home
+            break;
+          case 1:
+            Get.toNamed('/explore');
+            break;
+          case 2:
+            controller.goToProfile();
+            break;
+        }
+      },
+    );
   }
-} 
+}

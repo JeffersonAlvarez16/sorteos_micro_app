@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 class EmptyStateWidget extends StatelessWidget {
   final String title;
   final String? subtitle;
+  final String? message; // Alias para subtitle para compatibilidad
   final IconData? icon;
   final String? imagePath;
   final Widget? customIcon;
   final String? actionText;
+  final String? buttonText; // Alias para actionText para compatibilidad
   final VoidCallback? onActionPressed;
+  final VoidCallback? onButtonPressed; // Alias para onActionPressed para compatibilidad
   final Color? iconColor;
   final double iconSize;
   final EdgeInsetsGeometry? padding;
@@ -17,13 +20,16 @@ class EmptyStateWidget extends StatelessWidget {
     Key? key,
     required this.title,
     this.subtitle,
+    this.message, // Alias para subtitle
     this.icon,
     this.imagePath,
     this.customIcon,
     this.actionText,
+    this.buttonText, // Alias para actionText
     this.onActionPressed,
+    this.onButtonPressed, // Alias para onActionPressed
     this.iconColor,
-    this.iconSize = 80.0,
+    this.iconSize = 60.0,
     this.padding,
     this.showAction = true,
   }) : super(key: key);
@@ -33,61 +39,70 @@ class EmptyStateWidget extends StatelessWidget {
     final theme = Theme.of(context);
     
     return Padding(
-      padding: padding ?? const EdgeInsets.all(32.0),
+      padding: padding ?? const EdgeInsets.all(24.0),
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Icono o imagen
-            _buildIcon(theme),
-            
-            const SizedBox(height: 24),
-            
-            // Título
-            Text(
-              title,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSurface,
-              ),
-              textAlign: TextAlign.center,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.85,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icono o imagen
+                _buildIcon(theme),
+                
+                const SizedBox(height: 20),
+                
+                // Título
+                Text(
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade800,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                // Subtítulo
+                if (subtitle != null || message != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    subtitle ?? message!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey.shade600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                
+                // Botón de acción
+                if (showAction && (actionText != null || buttonText != null) && (onActionPressed != null || onButtonPressed != null)) ...[
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: onActionPressed ?? onButtonPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey.shade200,
+                      foregroundColor: Colors.grey.shade800,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: Text(
+                      actionText ?? buttonText!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-            
-            // Subtítulo
-            if (subtitle != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                subtitle!,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-            
-            // Botón de acción
-            if (showAction && actionText != null && onActionPressed != null) ...[
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: onActionPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: theme.colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  actionText!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -110,7 +125,7 @@ class EmptyStateWidget extends StatelessWidget {
     return Icon(
       icon ?? Icons.inbox_outlined,
       size: iconSize,
-      color: iconColor ?? theme.colorScheme.primary.withOpacity(0.6),
+      color: iconColor ?? Colors.grey.shade400,
     );
   }
 }

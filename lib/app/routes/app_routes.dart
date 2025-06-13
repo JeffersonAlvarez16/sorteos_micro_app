@@ -15,6 +15,7 @@ abstract class Routes {
   static const STATISTICS = _Paths.STATISTICS;
   static const NOTIFICATIONS = _Paths.NOTIFICATIONS;
   static const SETTINGS = _Paths.SETTINGS;
+  static const PAYMENT_METHODS = _Paths.PAYMENT_METHODS;
 }
 
 abstract class _Paths {
@@ -32,4 +33,5 @@ abstract class _Paths {
   static const STATISTICS = '/statistics';
   static const NOTIFICATIONS = '/notifications';
   static const SETTINGS = '/settings';
+  static const PAYMENT_METHODS = '/payment-methods';
 } 

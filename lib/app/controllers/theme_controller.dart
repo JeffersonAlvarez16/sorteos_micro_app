@@ -109,7 +109,7 @@ class ThemeController extends GetxController {
   }
   
   // Usar tema del sistema
-  void useSystemTheme() {
+  void enableSystemTheme() {
     _useSystemTheme.value = true;
     _detectSystemTheme();
     _saveThemeToStorage();

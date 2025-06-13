@@ -18,6 +18,7 @@ class StorageService extends GetxService {
   // Keys
   static const String _keyUserId = 'user_id';
   static const String _keyUserEmail = 'user_email';
+  static const String _keyUserPassword = 'user_password';
   static const String _keyUserToken = 'user_token';
   static const String _keyIsLoggedIn = 'is_logged_in';
   static const String _keyRememberMe = 'remember_me';
@@ -29,6 +30,9 @@ class StorageService extends GetxService {
   static const String _keyLastLoginTime = 'last_login_time';
   static const String _keyUserPreferences = 'user_preferences';
   static const String _keyNotifications = 'stored_notifications';
+  static const String _keyBiometricEnabled = 'biometric_enabled';
+  static const String _keyPinEnabled = 'pin_enabled';
+  static const String _keyPinCode = 'pin_code';
 
   // User Authentication
   String? get userId => _prefs.getString(_keyUserId);
@@ -46,6 +50,15 @@ class StorageService extends GetxService {
       _prefs.setString(_keyUserEmail, value);
     } else {
       _prefs.remove(_keyUserEmail);
+    }
+  }
+
+  String? get userPassword => _prefs.getString(_keyUserPassword);
+  set userPassword(String? value) {
+    if (value != null) {
+      _prefs.setString(_keyUserPassword, value);
+    } else {
+      _prefs.remove(_keyUserPassword);
     }
   }
 
@@ -76,6 +89,23 @@ class StorageService extends GetxService {
 
   String get themeMode => _prefs.getString(_keyThemeMode) ?? 'light';
   set themeMode(String value) => _prefs.setString(_keyThemeMode, value);
+  
+  // Biometric authentication
+  bool get biometricEnabled => _prefs.getBool(_keyBiometricEnabled) ?? false;
+  set biometricEnabled(bool value) => _prefs.setBool(_keyBiometricEnabled, value);
+  
+  // PIN authentication
+  bool get pinEnabled => _prefs.getBool(_keyPinEnabled) ?? false;
+  set pinEnabled(bool value) => _prefs.setBool(_keyPinEnabled, value);
+  
+  String? get pinCode => _prefs.getString(_keyPinCode);
+  set pinCode(String? value) {
+    if (value != null) {
+      _prefs.setString(_keyPinCode, value);
+    } else {
+      _prefs.remove(_keyPinCode);
+    }
+  }
 
   String? get fcmToken => _prefs.getString(_keyFcmToken);
   set fcmToken(String? value) {
@@ -121,17 +151,19 @@ class StorageService extends GetxService {
   }
 
   // Utility Methods
-  bool get isLoggedIn => userId != null && userToken != null;
-
   void saveUserSession({
     required String userId,
     required String email,
     required String token,
+    String? password,
     bool rememberMe = false,
   }) {
     this.userId = userId;
     this.userEmail = email;
     this.userToken = token;
+    if (password != null) {
+      this.userPassword = password;
+    }
     this.rememberMe = rememberMe;
     this.lastLoginTime = DateTime.now();
     this.isLoggedIn = true;

@@ -207,7 +207,7 @@ class DepositCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                _getPaymentMethodName(deposit.paymentMethod),
+                _getPaymentMethodName(deposit.paymentMethod.name),
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),

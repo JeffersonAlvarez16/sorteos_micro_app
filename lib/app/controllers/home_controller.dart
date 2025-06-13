@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -26,14 +27,55 @@ class HomeController extends GetxController {
   final RxInt _selectedTabIndex = 0.obs;
   final RxString _searchQuery = ''.obs;
   final RxBool _hasConnection = true.obs;
+  final TextEditingController searchController = TextEditingController();
 
   // Real-time subscriptions
   RealtimeChannel? _rafflesSubscription;
   Timer? _refreshTimer;
 
+  // Observable filter state
+  final RxString _selectedFilter = 'all'.obs;
+
   // Getters
   List<RaffleModel> get activeRaffles => _activeRaffles;
   List<RaffleModel> get completedRaffles => _completedRaffles;
+  String get selectedFilter => _selectedFilter.value;
+  List<RaffleModel> get filteredRaffles {
+    if (_selectedFilter.value == 'active') {
+      return filteredActiveRaffles;
+    } else if (_selectedFilter.value == 'completed') {
+      return filteredCompletedRaffles;
+    } else if (_selectedFilter.value == 'my_participations') {
+      return filteredMyParticipations;
+    } else {
+      // 'all' or any other value
+      return [...filteredActiveRaffles, ...filteredCompletedRaffles];
+    }
+  }
+  
+  List<RaffleModel> get filteredCompletedRaffles {
+    if (_searchQuery.value.isEmpty) return _completedRaffles;
+    return _completedRaffles.where((raffle) =>
+      raffle.title.toLowerCase().contains(_searchQuery.value.toLowerCase()) ||
+      raffle.description.toLowerCase().contains(_searchQuery.value.toLowerCase())
+    ).toList();
+  }
+
+  List<RaffleModel> get filteredMyParticipations {
+    final userId = _authService.currentUser?.id;
+    if (userId == null) return [];
+
+    final participatedRaffles = [..._activeRaffles, ..._completedRaffles]
+      .where((raffle) => raffle.hasUserParticipated(userId))
+      .toList();
+
+    if (_searchQuery.value.isEmpty) return participatedRaffles;
+    return participatedRaffles.where((raffle) =>
+      raffle.title.toLowerCase().contains(_searchQuery.value.toLowerCase()) ||
+      raffle.description.toLowerCase().contains(_searchQuery.value.toLowerCase())
+    ).toList();
+  }
+
   List<RaffleModel> get filteredActiveRaffles {
     if (_searchQuery.value.isEmpty) return _activeRaffles;
     return _activeRaffles.where((raffle) =>
@@ -49,6 +91,12 @@ class HomeController extends GetxController {
   bool get hasConnection => _hasConnection.value;
   UserModel? get currentUser => _authService.currentUser;
   int get unreadNotifications => _notificationService.unreadCount;
+  int get userParticipationsCount => filteredMyParticipations.length;
+  int get activeRafflesCount => _activeRaffles.length;
+  double get userBalance => _authService.currentUser?.balance ?? 0.0;
+  bool get hasUnreadNotifications => unreadNotifications > 0;
+  bool get isLoadingStats => _isLoading.value;
+  bool get isLoadingMore => _isLoading.value && filteredRaffles.isNotEmpty;
 
   @override
   void onInit() {
@@ -199,6 +247,27 @@ class HomeController extends GetxController {
     Get.toNamed('/settings');
   }
 
+  // Filter methods
+  void setFilter(String filter) {
+    _selectedFilter.value = filter;
+  }
+
+  void filterByStatus(String status) {
+    if (status == 'active') {
+      setFilter('active');
+    } else if (status == 'completed') {
+      setFilter('completed');
+    } else if (status == 'my_participations') {
+      setFilter('my_participations');
+    } else {
+      setFilter('all');
+    }
+  }
+
+  void goToMyParticipations() {
+    setFilter('my_participations');
+  }
+  
   // Comprar tickets rápido
   Future<void> quickPurchaseTickets(String raffleId, int ticketCount) async {
     try {
@@ -251,6 +320,33 @@ class HomeController extends GetxController {
     }
   }
 
+  // Obtener color del estado del sorteo
+  String getRaffleStatusColor(RaffleModel raffle) {
+    switch (raffle.status) {
+      case RaffleStatus.active:
+        final timeLeft = raffle.endTime.difference(DateTime.now());
+        if (timeLeft.inHours < 1) return 'red';
+        if (timeLeft.inHours < 6) return 'orange';
+        return 'green';
+      case RaffleStatus.completed:
+        return 'blue';
+      case RaffleStatus.cancelled:
+        return 'grey';
+      default:
+        return 'grey';
+    }
+  }
+
+  // Verificar si el usuario puede participar
+  bool canUserParticipate(RaffleModel raffle) {
+    if (_authService.currentUser == null) return false;
+    if (raffle.status != RaffleStatus.active) return false;
+    if (raffle.endTime.isBefore(DateTime.now())) return false;
+    if (raffle.soldTickets >= raffle.maxTickets) return false;
+    
+    return true;
+  }
+  
   // Obtener tiempo restante formateado
   String getTimeRemaining(DateTime endDate) {
     final now = DateTime.now();
@@ -270,40 +366,13 @@ class HomeController extends GetxController {
       return '${minutes}m';
     }
   }
-
-  // Obtener color del estado del sorteo
-  String getRaffleStatusColor(RaffleModel raffle) {
-    switch (raffle.status) {
-      case 'active':
-        final timeLeft = raffle.endDate.difference(DateTime.now());
-        if (timeLeft.inHours < 1) return 'red';
-        if (timeLeft.inHours < 6) return 'orange';
-        return 'green';
-      case 'completed':
-        return 'blue';
-      case 'cancelled':
-        return 'grey';
-      default:
-        return 'grey';
-    }
-  }
-
+  
   // Obtener probabilidad de ganar
   double getWinProbability(RaffleModel raffle) {
     if (raffle.maxTickets == 0) return 0.0;
     
-    final userTickets = raffle.userTicketCount ?? 0;
+    final userTickets = raffle.getUserTicketCount(_authService.currentUser?.id ?? '');
     return (userTickets / raffle.maxTickets) * 100;
-  }
-
-  // Verificar si el usuario puede participar
-  bool canUserParticipate(RaffleModel raffle) {
-    if (_authService.currentUser == null) return false;
-    if (raffle.status != 'active') return false;
-    if (raffle.endDate.isBefore(DateTime.now())) return false;
-    if (raffle.soldTickets >= raffle.maxTickets) return false;
-    
-    return true;
   }
 
   // Obtener recomendación de tickets
@@ -316,6 +385,37 @@ class HomeController extends GetxController {
     return [maxAffordable, remaining, 5].reduce((a, b) => a < b ? a : b).clamp(1, 5);
   }
 
+  // Get greeting based on time of day
+  String getGreeting() {
+    final hour = DateTime.now().hour;
+    
+    if (hour < 12) {
+      return 'Buenos días';
+    } else if (hour < 18) {
+      return 'Buenas tardes';
+    } else {
+      return 'Buenas noches';
+    }
+  }
+  
+  // Handle menu action selection
+  void handleMenuAction(String action) {
+    switch (action) {
+      case 'profile':
+        goToProfile();
+        break;
+      case 'deposits':
+        goToDeposits();
+        break;
+      case 'history':
+        goToMyParticipations();
+        break;
+      case 'settings':
+        goToSettings();
+        break;
+    }
+  }
+  
   // Logout
   Future<void> logout() async {
     final confirmed = await _showConfirmationDialog(
@@ -357,7 +457,7 @@ class HomeController extends GetxController {
     required String message,
   }) async {
     return await Get.dialog<bool>(
-      AlertDialog(
+      AlertDialog.adaptive(
         title: Text(title),
         content: Text(message),
         actions: [

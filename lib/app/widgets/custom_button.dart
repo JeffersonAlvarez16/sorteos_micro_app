@@ -61,13 +61,19 @@ class CustomButton extends StatelessWidget {
     }
 
     if (icon != null) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: _getIconSize()),
-          const SizedBox(width: 8),
-          Text(text, style: _getTextStyle()),
-        ],
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: _getIconSize()),
+              const SizedBox(width: 8),
+              Text(text, style: _getTextStyle()),
+            ],
+          ),
+        ),
       );
     }
 
@@ -82,153 +88,142 @@ class CustomButton extends StatelessWidget {
       foregroundColor: textColor ?? colors.foreground,
       disabledBackgroundColor: colors.disabledBackground,
       disabledForegroundColor: colors.disabledForeground,
-      elevation: type == ButtonType.flat ? 0 : 2,
-      shadowColor: Colors.black26,
+      elevation: 0, // Sin elevación para un look minimalista
+      shadowColor: Colors.transparent,
       padding: padding ?? _getButtonPadding(),
       shape: RoundedRectangleBorder(
         borderRadius: borderRadius ?? BorderRadius.circular(_getBorderRadius()),
         side: type == ButtonType.outlined 
-          ? BorderSide(color: backgroundColor ?? theme.colorScheme.primary)
+          ? BorderSide(color: backgroundColor ?? Colors.grey.shade400)
           : BorderSide.none,
       ),
     );
   }
 
   _ButtonColors _getButtonColors(ThemeData theme) {
+    // Colores minimalistas para todos los tipos de botones
     switch (type) {
       case ButtonType.primary:
         return _ButtonColors(
-          background: theme.colorScheme.primary,
-          foreground: theme.colorScheme.onPrimary,
-          disabledBackground: theme.colorScheme.primary.withOpacity(0.3),
-          disabledForeground: theme.colorScheme.onPrimary.withOpacity(0.5),
+          background: Colors.grey.shade800,
+          foreground: Colors.white,
+          disabledBackground: Colors.grey.shade300,
+          disabledForeground: Colors.grey.shade500,
         );
       
       case ButtonType.secondary:
         return _ButtonColors(
-          background: theme.colorScheme.secondary,
-          foreground: theme.colorScheme.onSecondary,
-          disabledBackground: theme.colorScheme.secondary.withOpacity(0.3),
-          disabledForeground: theme.colorScheme.onSecondary.withOpacity(0.5),
-        );
-      
-      case ButtonType.success:
-        return _ButtonColors(
-          background: Colors.green,
-          foreground: Colors.white,
-          disabledBackground: Colors.green.withOpacity(0.3),
-          disabledForeground: Colors.white.withOpacity(0.5),
-        );
-      
-      case ButtonType.danger:
-        return _ButtonColors(
-          background: theme.colorScheme.error,
-          foreground: theme.colorScheme.onError,
-          disabledBackground: theme.colorScheme.error.withOpacity(0.3),
-          disabledForeground: theme.colorScheme.onError.withOpacity(0.5),
-        );
-      
-      case ButtonType.warning:
-        return _ButtonColors(
-          background: Colors.orange,
-          foreground: Colors.white,
-          disabledBackground: Colors.orange.withOpacity(0.3),
-          disabledForeground: Colors.white.withOpacity(0.5),
+          background: Colors.grey.shade200,
+          foreground: Colors.grey.shade800,
+          disabledBackground: Colors.grey.shade100,
+          disabledForeground: Colors.grey.shade400,
         );
       
       case ButtonType.outlined:
         return _ButtonColors(
           background: Colors.transparent,
-          foreground: theme.colorScheme.primary,
+          foreground: Colors.grey.shade700,
           disabledBackground: Colors.transparent,
-          disabledForeground: theme.colorScheme.primary.withOpacity(0.5),
+          disabledForeground: Colors.grey.shade400,
         );
       
       case ButtonType.flat:
         return _ButtonColors(
           background: Colors.transparent,
-          foreground: theme.colorScheme.primary,
+          foreground: Colors.grey.shade700,
           disabledBackground: Colors.transparent,
-          disabledForeground: theme.colorScheme.primary.withOpacity(0.5),
+          disabledForeground: Colors.grey.shade400,
         );
+      
+      case ButtonType.danger:
+        return _ButtonColors(
+          background: Colors.grey.shade700,
+          foreground: Colors.white,
+          disabledBackground: Colors.grey.shade300,
+          disabledForeground: Colors.grey.shade500,
+        );
+    }
+  }
+
+  Color _getLoadingColor() {
+    switch (type) {
+      case ButtonType.primary:
+      case ButtonType.danger:
+        return Colors.white;
+      case ButtonType.secondary:
+      case ButtonType.outlined:
+      case ButtonType.flat:
+        return Colors.grey.shade600;
     }
   }
 
   double _getButtonHeight() {
     switch (size) {
-      case ButtonSize.small:
-        return 36.0;
-      case ButtonSize.medium:
-        return 48.0;
-      case ButtonSize.large:
-        return 56.0;
+      case ButtonSize.small: return 32.0;
+      case ButtonSize.medium: return 44.0;
+      case ButtonSize.large: return 52.0;
     }
   }
 
   EdgeInsetsGeometry _getButtonPadding() {
     switch (size) {
       case ButtonSize.small:
-        return const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
+        return const EdgeInsets.symmetric(horizontal: 12.0);
       case ButtonSize.medium:
-        return const EdgeInsets.symmetric(horizontal: 24, vertical: 12);
+        return const EdgeInsets.symmetric(horizontal: 16.0);
       case ButtonSize.large:
-        return const EdgeInsets.symmetric(horizontal: 32, vertical: 16);
+        return const EdgeInsets.symmetric(horizontal: 24.0);
     }
   }
 
   double _getBorderRadius() {
     switch (size) {
-      case ButtonSize.small:
-        return 6.0;
-      case ButtonSize.medium:
-        return 8.0;
-      case ButtonSize.large:
-        return 12.0;
+      case ButtonSize.small: return 4.0;
+      case ButtonSize.medium: return 6.0;
+      case ButtonSize.large: return 8.0;
     }
   }
 
   double _getIconSize() {
     switch (size) {
-      case ButtonSize.small:
-        return 16.0;
-      case ButtonSize.medium:
-        return 20.0;
-      case ButtonSize.large:
-        return 24.0;
+      case ButtonSize.small: return 16.0;
+      case ButtonSize.medium: return 20.0;
+      case ButtonSize.large: return 24.0;
     }
   }
 
   double _getLoadingSize() {
     switch (size) {
-      case ButtonSize.small:
-        return 16.0;
-      case ButtonSize.medium:
-        return 20.0;
-      case ButtonSize.large:
-        return 24.0;
+      case ButtonSize.small: return 16.0;
+      case ButtonSize.medium: return 20.0;
+      case ButtonSize.large: return 24.0;
     }
   }
 
-  TextStyle _getTextStyle() {
+  TextStyle? _getTextStyle() {
     switch (size) {
       case ButtonSize.small:
-        return const TextStyle(fontSize: 14, fontWeight: FontWeight.w600);
+        return const TextStyle(fontSize: 12.0, fontWeight: FontWeight.w500);
       case ButtonSize.medium:
-        return const TextStyle(fontSize: 16, fontWeight: FontWeight.w600);
+        return const TextStyle(fontSize: 14.0, fontWeight: FontWeight.w500);
       case ButtonSize.large:
-        return const TextStyle(fontSize: 18, fontWeight: FontWeight.w600);
+        return const TextStyle(fontSize: 16.0, fontWeight: FontWeight.w500);
     }
   }
+}
 
-  Color _getLoadingColor() {
-    switch (type) {
-      case ButtonType.outlined:
-      case ButtonType.flat:
-        return backgroundColor ?? Colors.blue;
-      default:
-        return textColor ?? Colors.white;
-    }
-  }
+enum ButtonType {
+  primary,
+  secondary,
+  outlined,
+  flat,
+  danger,
+}
+
+enum ButtonSize {
+  small,
+  medium,
+  large,
 }
 
 class _ButtonColors {
@@ -237,7 +232,7 @@ class _ButtonColors {
   final Color disabledBackground;
   final Color disabledForeground;
 
-  const _ButtonColors({
+  _ButtonColors({
     required this.background,
     required this.foreground,
     required this.disabledBackground,
@@ -245,21 +240,7 @@ class _ButtonColors {
   });
 }
 
-enum ButtonType {
-  primary,
-  secondary,
-  success,
-  danger,
-  warning,
-  outlined,
-  flat,
-}
 
-enum ButtonSize {
-  small,
-  medium,
-  large,
-}
 
 class FloatingActionCustomButton extends StatefulWidget {
   final VoidCallback? onPressed;

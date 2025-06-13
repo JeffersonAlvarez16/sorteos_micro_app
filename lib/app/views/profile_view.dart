@@ -8,7 +8,7 @@ import '../widgets/stat_card.dart';
 import '../widgets/custom_text_field.dart';
 
 class ProfileView extends GetView<ProfileController> {
-  const ProfileView({Key? key}) : super(key: key);
+  const ProfileView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +17,7 @@ class ProfileView extends GetView<ProfileController> {
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
       body: Obx(() {
-        if (controller.isLoading.value) {
+        if (controller.isLoading) {
           return const LoadingWidget(message: 'Cargando perfil...');
         }
 
@@ -58,14 +58,14 @@ class ProfileView extends GetView<ProfileController> {
 
   Widget _buildSliverAppBar(ThemeData theme) {
     return SliverAppBar(
-      expandedHeight: 200.0,
+      expandedHeight: 250.0,
       floating: false,
       pinned: true,
       backgroundColor: theme.colorScheme.primary,
       foregroundColor: theme.colorScheme.onPrimary,
       flexibleSpace: FlexibleSpaceBar(
         title: Obx(() => Text(
-          controller.user.value?.name ?? 'Usuario',
+          controller.user?.fullName ?? 'Usuario',
           style: TextStyle(
             color: theme.colorScheme.onPrimary,
             fontWeight: FontWeight.bold,
@@ -95,10 +95,10 @@ class ProfileView extends GetView<ProfileController> {
                     CircleAvatar(
                       radius: 50,
                       backgroundColor: Colors.white.withOpacity(0.2),
-                      backgroundImage: controller.user.value?.avatarUrl != null
-                          ? NetworkImage(controller.user.value!.avatarUrl!)
+                      backgroundImage: controller.user?.avatar != null
+                          ? NetworkImage(controller.user!.avatar!)
                           : null,
-                      child: controller.user.value?.avatarUrl == null
+                      child: controller.user?.avatar == null
                           ? Icon(
                               Icons.person,
                               size: 50,
@@ -130,11 +130,11 @@ class ProfileView extends GetView<ProfileController> {
                 ),
               )),
               
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               
               // Email del usuario
               Obx(() => Text(
-                controller.user.value?.email ?? '',
+                controller.user?.email ?? '',
                 style: TextStyle(
                   color: theme.colorScheme.onPrimary.withOpacity(0.8),
                   fontSize: 14,
@@ -195,7 +195,6 @@ class ProfileView extends GetView<ProfileController> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 16),
           
           Obx(() => GridView.count(
             shrinkWrap: true,
@@ -207,25 +206,25 @@ class ProfileView extends GetView<ProfileController> {
             children: [
               CompactStatCard(
                 title: 'Sorteos participados',
-                value: controller.userStats.value?.totalRaffles.toString() ?? '0',
+                value: controller.userStats['total_raffles']?.toString() ?? '0',
                 icon: Icons.confirmation_number,
                 color: theme.colorScheme.primary,
               ),
               CompactStatCard(
                 title: 'Boletos comprados',
-                value: controller.userStats.value?.totalTickets.toString() ?? '0',
+                value: controller.userStats['total_tickets']?.toString() ?? '0',
                 icon: Icons.local_activity,
                 color: Colors.blue,
               ),
               CompactStatCard(
                 title: 'Premios ganados',
-                value: controller.userStats.value?.prizesWon.toString() ?? '0',
+                value: controller.userStats['prizes_won']?.toString() ?? '0',
                 icon: Icons.emoji_events,
                 color: Colors.amber,
               ),
               CompactStatCard(
                 title: 'Total invertido',
-                value: '€${controller.userStats.value?.totalSpent.toStringAsFixed(2) ?? '0.00'}',
+                value: '€${(controller.userStats['total_spent'] as double?)?.toStringAsFixed(2) ?? '0.00'}',
                 icon: Icons.account_balance_wallet,
                 color: Colors.green,
               ),
@@ -311,10 +310,10 @@ class ProfileView extends GetView<ProfileController> {
           Obx(() => SwitchListTile(
             title: const Text('Tema oscuro'),
             subtitle: const Text('Cambiar entre tema claro y oscuro'),
-            value: controller.isDarkMode.value,
-            onChanged: controller.toggleDarkMode,
+            value: controller.isDarkMode,
+            onChanged: (_) => controller.toggleDarkMode(),
             secondary: Icon(
-              controller.isDarkMode.value ? Icons.dark_mode : Icons.light_mode,
+              controller.isDarkMode ? Icons.dark_mode : Icons.light_mode,
             ),
           )),
           
@@ -324,8 +323,8 @@ class ProfileView extends GetView<ProfileController> {
           Obx(() => SwitchListTile(
             title: const Text('Notificaciones push'),
             subtitle: const Text('Recibir notificaciones en el dispositivo'),
-            value: controller.pushNotificationsEnabled.value,
-            onChanged: controller.togglePushNotifications,
+            value: controller.pushNotificationsEnabled,
+            onChanged: (value) => controller.togglePushNotifications(value),
             secondary: const Icon(Icons.notifications_active),
           )),
           
@@ -335,8 +334,8 @@ class ProfileView extends GetView<ProfileController> {
           Obx(() => SwitchListTile(
             title: const Text('Notificaciones por email'),
             subtitle: const Text('Recibir notificaciones por correo'),
-            value: controller.emailNotificationsEnabled.value,
-            onChanged: controller.toggleEmailNotifications,
+            value: controller.emailNotificationsEnabled,
+            onChanged: (value) => controller.toggleEmailNotifications(value),
             secondary: const Icon(Icons.email),
           )),
           
@@ -346,8 +345,8 @@ class ProfileView extends GetView<ProfileController> {
           Obx(() => SwitchListTile(
             title: const Text('Autenticación biométrica'),
             subtitle: const Text('Usar huella dactilar o Face ID'),
-            value: controller.biometricEnabled.value,
-            onChanged: controller.toggleBiometric,
+            value: controller.biometricEnabled,
+            onChanged: (value) => controller.toggleBiometric(value),
             secondary: const Icon(Icons.fingerprint),
           )),
         ],
@@ -378,32 +377,37 @@ class ProfileView extends GetView<ProfileController> {
             ),
           ),
           
-          Obx(() => _buildInfoRow(
-            theme,
-            'Miembro desde',
-            controller.formatDate(controller.user.value?.createdAt),
-            Icons.calendar_today,
-          )),
-          
-          Obx(() => _buildInfoRow(
-            theme,
-            'Último acceso',
-            controller.formatDate(controller.user.value?.lastLogin),
-            Icons.access_time,
-          )),
-          
-          Obx(() => _buildInfoRow(
-            theme,
-            'Estado de la cuenta',
-            controller.user.value?.isVerified == true ? 'Verificada' : 'Pendiente',
-            controller.user.value?.isVerified == true ? Icons.verified : Icons.pending,
-          )),
-          
-          Obx(() => _buildInfoRow(
-            theme,
-            'Nivel de usuario',
-            controller.user.value?.level ?? 'Básico',
-            Icons.star,
+          // Usar un solo Obx para toda la sección de información
+          Obx(() => Column(
+            children: [
+              _buildInfoRow(
+                theme,
+                'Miembro desde',
+                controller.user?.createdAt != null ? controller.formatDate(controller.user!.createdAt) : 'N/A',
+                Icons.calendar_today,
+              ),
+              
+              _buildInfoRow(
+                theme,
+                'Último acceso',
+                controller.user?.lastLogin != null ? controller.formatDate(controller.user!.lastLogin!) : 'N/A',
+                Icons.access_time,
+              ),
+              
+              _buildInfoRow(
+                theme,
+                'Estado de la cuenta',
+                controller.user?.emailVerified == true ? 'Verificada' : 'Pendiente',
+                controller.user?.emailVerified == true ? Icons.verified : Icons.pending,
+              ),
+              
+              _buildInfoRow(
+                theme,
+                'Nivel de usuario',
+                'Básico', // Level is not in UserModel, defaulting to 'Básico'
+                Icons.star,
+              ),
+            ],
           )),
         ],
       ),
@@ -546,7 +550,7 @@ class ProfileView extends GetView<ProfileController> {
 
 // Pantalla de edición de perfil
 class EditProfileView extends GetView<ProfileController> {
-  const EditProfileView({Key? key}) : super(key: key);
+  const EditProfileView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -561,7 +565,7 @@ class EditProfileView extends GetView<ProfileController> {
         actions: [
           TextButton(
             onPressed: controller.saveProfile,
-            child: Obx(() => controller.isSaving.value
+            child: Obx(() => controller.isSaving
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -584,10 +588,10 @@ class EditProfileView extends GetView<ProfileController> {
                     Obx(() => CircleAvatar(
                       radius: 60,
                       backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                      backgroundImage: controller.user.value?.avatarUrl != null
-                          ? NetworkImage(controller.user.value!.avatarUrl!)
+                      backgroundImage: controller.user?.avatar != null
+                          ? NetworkImage(controller.user!.avatar!)
                           : null,
-                      child: controller.user.value?.avatarUrl == null
+                      child: controller.user?.avatar == null
                           ? Icon(
                               Icons.person,
                               size: 60,

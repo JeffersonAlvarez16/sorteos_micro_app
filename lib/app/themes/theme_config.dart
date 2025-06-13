@@ -65,7 +65,7 @@ class ThemeConfig {
   static LinearGradient get primaryGradient => LinearGradient(
     colors: [
       AppColors.primaryGold,
-      AppColors.primaryGold.withOpacity(0.8),
+      AppColors.primaryGold.withValues(alpha: 0.8),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -74,7 +74,7 @@ class ThemeConfig {
   static LinearGradient get secondaryGradient => LinearGradient(
     colors: [
       AppColors.primaryBlue,
-      AppColors.primaryBlue.withOpacity(0.8),
+      AppColors.primaryBlue.withValues(alpha: 0.8),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -82,8 +82,8 @@ class ThemeConfig {
   
   static LinearGradient get successGradient => LinearGradient(
     colors: [
-      AppColors.success,
-      AppColors.success.withOpacity(0.8),
+      AppColors.successGreen,
+      AppColors.successGreen.withValues(alpha: 0.8),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -91,8 +91,8 @@ class ThemeConfig {
   
   static LinearGradient get errorGradient => LinearGradient(
     colors: [
-      AppColors.error,
-      AppColors.error.withOpacity(0.8),
+      AppColors.errorRed,
+      AppColors.errorRed.withValues(alpha: 0.8),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -229,9 +229,9 @@ class CustomThemeExtension extends ThemeExtension<CustomThemeExtension> {
     raffleCardColor: Color(0xFFFFFBF0),
     depositCardColor: Color(0xFFF0F8FF),
     statisticCardColor: Color(0xFFF8F9FA),
-    successColor: AppColors.success,
-    warningColor: AppColors.warning,
-    infoColor: AppColors.info,
+    successColor: AppColors.successGreen,
+    warningColor: AppColors.warningOrange,
+    infoColor: AppColors.infoBlue,
     goldColor: AppColors.primaryGold,
     silverColor: Color(0xFFC0C0C0),
     bronzeColor: Color(0xFFCD7F32),
@@ -255,9 +255,9 @@ class CustomThemeExtension extends ThemeExtension<CustomThemeExtension> {
     raffleCardColor: Color(0xFF2A2A2A),
     depositCardColor: Color(0xFF1E2A3A),
     statisticCardColor: Color(0xFF252525),
-    successColor: AppColors.success,
-    warningColor: AppColors.warning,
-    infoColor: AppColors.info,
+    successColor: AppColors.successGreen,
+    warningColor: AppColors.warningOrange,
+    infoColor: AppColors.infoBlue,
     goldColor: AppColors.primaryGold,
     silverColor: Color(0xFFC0C0C0),
     bronzeColor: Color(0xFFCD7F32),
@@ -332,18 +332,18 @@ class ThemeUtils {
     switch (status.toLowerCase()) {
       case 'active':
       case 'activo':
-        return AppColors.success;
+        return AppColors.successGreen;
       case 'pending':
       case 'pendiente':
-        return AppColors.warning;
+        return AppColors.warningOrange;
       case 'completed':
       case 'completado':
-        return AppColors.info;
+        return AppColors.infoBlue;
       case 'cancelled':
       case 'cancelado':
       case 'failed':
       case 'fallido':
-        return AppColors.error;
+        return AppColors.errorRed;
       default:
         return AppColors.neutral400;
     }

@@ -46,6 +46,53 @@ class RaffleModel {
   });
 
   factory RaffleModel.fromJson(Map<String, dynamic> json) {
+    // Handle different response formats from Supabase
+    // For tickets count format
+    int soldTicketsCount = 0;
+    if (json['tickets'] != null && json['tickets'] is List) {
+      // This might be empty list
+      soldTicketsCount = (json['tickets'] as List).length;
+    } else if (json['tickets'] != null && json['tickets'] is Map && json['tickets']['count'] != null) {
+      // This is the count response format
+      soldTicketsCount = json['tickets']['count'] as int? ?? 0;
+    } else {
+      soldTicketsCount = json['sold_tickets'] ?? 0;
+    }
+    
+    // Participants handling
+    List<RaffleParticipant> participantsList = [];
+    if (json['participants'] != null && json['participants'] is List) {
+      // Direct participants list format
+      participantsList = (json['participants'] as List)
+          .map((p) => RaffleParticipant.fromJson(p))
+          .toList();
+    } else if (json['participants'] != null && json['participants'] is Map) {
+      // This might be a specific format with user_id as key
+      final userIds = (json['participants'] as Map).keys.toList();
+      participantsList = userIds.map((id) => 
+          RaffleParticipant(
+            userId: id.toString(),
+            userName: 'Participant', // We don't have the name in this format
+            ticketCount: 1, // Default count
+            tickets: ['Unknown'], // We don't have ticket numbers in this format
+            purchaseTime: DateTime.now(),
+            amountPaid: 0.0, // We don't have this info in this format
+          )
+      ).toList();
+    }
+
+    // Handle the winner data which could be in a nested format
+    String? winnerIdValue;
+    String? winnerNameValue;
+    
+    if (json['winner'] != null && json['winner'] is Map<String, dynamic>) {
+      winnerIdValue = json['winner']['id'];
+      winnerNameValue = json['winner']['full_name'];
+    } else {
+      winnerIdValue = json['winner_id'];
+      winnerNameValue = json['winner_name'];
+    }
+    
     return RaffleModel(
       id: json['id'] ?? '',
       title: json['title'] ?? '',
@@ -53,24 +100,22 @@ class RaffleModel {
       prizeAmount: (json['prize_amount'] ?? 0.0).toDouble(),
       ticketPrice: (json['ticket_price'] ?? 0.0).toDouble(),
       maxTickets: json['max_tickets'] ?? 0,
-      soldTickets: json['sold_tickets'] ?? 0,
-      startTime: DateTime.parse(json['start_time']),
-      endTime: DateTime.parse(json['end_time']),
+      soldTickets: soldTicketsCount,
+      startTime: json['start_time'] != null ? DateTime.parse(json['start_time']) : DateTime.now(),
+      endTime: json['end_time'] != null ? DateTime.parse(json['end_time']) : DateTime.now().add(const Duration(days: 1)),
       status: RaffleStatus.values.firstWhere(
-        (e) => e.name == json['status'],
+        (e) => e.name == (json['status'] ?? ''),
         orElse: () => RaffleStatus.scheduled,
       ),
-      winnerId: json['winner_id'],
-      winnerName: json['winner_name'],
+      winnerId: winnerIdValue,
+      winnerName: winnerNameValue,
       winningTicket: json['winning_ticket'],
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now(),
       completedAt: json['completed_at'] != null 
           ? DateTime.parse(json['completed_at']) 
           : null,
       metadata: json['metadata'],
-      participants: (json['participants'] as List<dynamic>?)
-          ?.map((p) => RaffleParticipant.fromJson(p))
-          .toList() ?? [],
+      participants: participantsList,
     );
   }
 
@@ -158,6 +203,11 @@ class RaffleModel {
   double get totalRevenue => soldTickets * ticketPrice;
   double get profitMargin => (totalRevenue - prizeAmount) / totalRevenue;
   
+  // Getters adicionales para compatibilidad
+  DateTime get endDate => endTime;
+  int get participantCount => participants.length;
+  int get userTicketCount => 0; // Placeholder - needs userId to be accurate
+  
   String get statusText {
     switch (status) {
       case RaffleStatus.scheduled:
@@ -172,6 +222,8 @@ class RaffleModel {
         return 'Cancelado';
     }
   }
+
+  
 
   String get timeRemainingText {
     if (!isLive) return '';

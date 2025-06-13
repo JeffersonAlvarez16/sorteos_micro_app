@@ -50,17 +50,18 @@ class DepositView extends GetView<DepositController> {
   PreferredSizeWidget _buildAppBar(ThemeData theme) {
     return AppBar(
       title: const Text('Mis Depósitos'),
-      backgroundColor: theme.colorScheme.primary,
-      foregroundColor: theme.colorScheme.onPrimary,
+      backgroundColor: Colors.white,
+      foregroundColor: Colors.grey.shade800,
       elevation: 0,
       actions: [
         IconButton(
-          onPressed: controller.showDepositInstructions,
-          icon: const Icon(Icons.help_outline),
+          onPressed: () => controller.toggleInstructions(),
+          icon: Icon(Icons.help_outline, color: Colors.grey.shade600),
           tooltip: 'Ayuda',
         ),
         PopupMenuButton<String>(
           onSelected: controller.handleMenuAction,
+          icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
           itemBuilder: (context) => [
             const PopupMenuItem(
               value: 'export',
@@ -70,14 +71,14 @@ class DepositView extends GetView<DepositController> {
                 contentPadding: EdgeInsets.zero,
               ),
             ),
-            const PopupMenuItem(
+           /*  const PopupMenuItem(
               value: 'payment_methods',
               child: ListTile(
                 leading: Icon(Icons.payment),
                 title: Text('Métodos de pago'),
                 contentPadding: EdgeInsets.zero,
               ),
-            ),
+            ), */
           ],
         ),
       ],
@@ -92,61 +93,52 @@ class DepositView extends GetView<DepositController> {
           // Balance principal
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primary,
-                  theme.colorScheme.secondary,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200, width: 1),
             ),
             child: Column(
               children: [
                 Text(
                   'Balance disponible',
                   style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.onPrimary.withOpacity(0.9),
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Obx(() => Text(
-                  '€${controller.userBalance.value.toStringAsFixed(2)}',
-                  style: theme.textTheme.headlineLarge?.copyWith(
-                    color: theme.colorScheme.onPrimary,
+                  '\$${controller.userBalance.toStringAsFixed(2)}',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: Colors.grey.shade800,
                     fontWeight: FontWeight.bold,
                   ),
                 )),
                 const SizedBox(height: 16),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildBalanceAction(
                       theme,
                       'Depositar',
                       Icons.add,
-                      controller.showDepositForm,
+                      controller.showDepositFormAction,
                     ),
-                    Container(
-                      width: 1,
-                      height: 40,
-                      color: theme.colorScheme.onPrimary.withOpacity(0.3),
+                    const SizedBox(width: 24),
+                    _buildBalanceAction(
+                      theme,
+                      'Métodos',
+                      Icons.credit_card,
+                      () => Get.toNamed('/payment-methods'),
                     ),
+                    const SizedBox(width: 24),
                     _buildBalanceAction(
                       theme,
                       'Historial',
                       Icons.history,
-                      controller.showDepositHistory,
+                      controller.showDepositHistoryAction,
                     ),
                   ],
                 ),
@@ -162,18 +154,18 @@ class DepositView extends GetView<DepositController> {
               Expanded(
                 child: CompactStatCard(
                   title: 'Total depositado',
-                  value: '€${controller.totalDeposited.value.toStringAsFixed(2)}',
+                  value: '\$${controller.totalDeposited.toStringAsFixed(2)}',
                   icon: Icons.trending_up,
-                  color: Colors.green,
+                  color: Colors.grey.shade700,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: CompactStatCard(
                   title: 'Depósitos pendientes',
-                  value: controller.pendingDepositsCount.value.toString(),
+                  value: controller.pendingDepositsCount.toString(),
                   icon: Icons.hourglass_empty,
-                  color: Colors.orange,
+                  color: Colors.grey.shade600,
                 ),
               ),
             ],
@@ -193,19 +185,19 @@ class DepositView extends GetView<DepositController> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(
           children: [
             Icon(
               icon,
-              color: theme.colorScheme.onPrimary,
-              size: 24,
+              color: Colors.grey.shade700,
+              size: 22,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onPrimary,
+                color: Colors.grey.shade700,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -223,20 +215,20 @@ class DepositView extends GetView<DepositController> {
           Expanded(
             child: CustomButton(
               text: 'Nuevo depósito',
-              onPressed: controller.showDepositForm,
+              onPressed: controller.goToNewDeposit,
               type: ButtonType.primary,
               icon: Icons.add,
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(
+          /* Expanded(
             child: CustomButton(
               text: 'Métodos de pago',
               onPressed: controller.managePaymentMethods,
               type: ButtonType.outlined,
               icon: Icons.payment,
             ),
-          ),
+          ), */
         ],
       ),
     );
@@ -251,12 +243,13 @@ class DepositView extends GetView<DepositController> {
           Text(
             'Filtrar por estado',
             style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade700,
             ),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 40,
+            height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
@@ -278,25 +271,29 @@ class DepositView extends GetView<DepositController> {
   Widget _buildFilterChip(String label, String value, ThemeData theme) {
     return Obx(() => FilterChip(
       label: Text(label),
-      selected: controller.selectedFilter.value == value,
+      selected: controller.selectedFilter == value,
       onSelected: (_) => controller.setFilter(value),
-      backgroundColor: theme.colorScheme.surface,
-      selectedColor: theme.colorScheme.primary.withOpacity(0.2),
-      checkmarkColor: theme.colorScheme.primary,
+      backgroundColor: Colors.grey.shade100,
+      selectedColor: Colors.grey.shade200,
+      checkmarkColor: Colors.grey.shade700,
+      side: BorderSide(color: Colors.grey.shade300, width: 1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
       labelStyle: TextStyle(
-        color: controller.selectedFilter.value == value
-          ? theme.colorScheme.primary
-          : theme.colorScheme.onSurface,
-        fontWeight: controller.selectedFilter.value == value
-          ? FontWeight.w600
+        color: controller.selectedFilter == value
+          ? Colors.grey.shade800
+          : Colors.grey.shade600,
+        fontWeight: controller.selectedFilter == value
+          ? FontWeight.w500
           : FontWeight.normal,
+        fontSize: 13,
       ),
     ));
   }
 
   Widget _buildDepositsList(ThemeData theme) {
     return Obx(() {
-      if (controller.isLoading.value && controller.filteredDeposits.isEmpty) {
+      if (controller.isLoading && controller.filteredDeposits.isEmpty) {
         return const SliverFillRemaining(
           child: LoadingWidget(message: 'Cargando depósitos...'),
         );
@@ -305,7 +302,7 @@ class DepositView extends GetView<DepositController> {
       if (controller.filteredDeposits.isEmpty) {
         return SliverFillRemaining(
           child: NoDepositsWidget(
-            onCreateDeposit: controller.showDepositForm,
+            onCreateDeposit: controller.showDepositFormCallback,
           ),
         );
       }
@@ -314,7 +311,7 @@ class DepositView extends GetView<DepositController> {
         delegate: SliverChildBuilderDelegate(
           (context, index) {
             if (index == controller.filteredDeposits.length) {
-              return Obx(() => controller.isLoadingMore.value
+              return Obx(() => controller.isLoadingMore
                 ? const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: LoadingWidget(message: 'Cargando más depósitos...'),
@@ -336,10 +333,10 @@ class DepositView extends GetView<DepositController> {
 
   Widget _buildFloatingActionButton(ThemeData theme) {
     return FloatingActionCustomButton(
-      onPressed: controller.showDepositForm,
+      onPressed: controller.showDepositFormAction,
       icon: Icons.add,
       tooltip: 'Nuevo depósito',
-      backgroundColor: theme.colorScheme.secondary,
+      backgroundColor: Colors.grey.shade800,
     );
   }
 }
@@ -435,7 +432,7 @@ class DepositFormView extends GetView<DepositController> {
           const SizedBox(height: 12),
           Text(
             '• Los depósitos se procesan en un máximo de 24 horas\n'
-            '• El monto mínimo es €10.00\n'
+            '• El monto mínimo es \$10.00\n'
             '• Asegúrate de adjuntar el comprobante de pago\n'
             '• Usa la referencia proporcionada para identificar tu depósito',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -462,7 +459,7 @@ class DepositFormView extends GetView<DepositController> {
           spacing: 12,
           runSpacing: 8,
           children: controller.availablePaymentMethods.map((method) {
-            final isSelected = controller.selectedPaymentMethod.value == method;
+            final isSelected = controller.selectedPaymentMethod == method.name;
             return ChoiceChip(
               label: Text(controller.getPaymentMethodName(method)),
               selected: isSelected,
@@ -502,7 +499,7 @@ class DepositFormView extends GetView<DepositController> {
           onChanged: controller.onAmountChanged,
         ),
         const SizedBox(height: 8),
-        Obx(() => controller.depositAmount.value > 0
+        Obx(() => controller.depositAmount > 0
           ? Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -518,7 +515,7 @@ class DepositFormView extends GetView<DepositController> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Recibirás: €${controller.depositAmount.value.toStringAsFixed(2)}',
+                    'Recibirás: \$${controller.depositAmount.toStringAsFixed(2)}',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.secondary,
                       fontWeight: FontWeight.w600,
@@ -533,7 +530,7 @@ class DepositFormView extends GetView<DepositController> {
   }
 
   Widget _buildReferenceSection(ThemeData theme) {
-    return Obx(() => controller.showReferenceField.value
+    return Obx(() => controller.showReferenceField
       ? CustomTextField(
           controller: controller.referenceController,
           label: 'Referencia de pago',
@@ -556,7 +553,7 @@ class DepositFormView extends GetView<DepositController> {
           ),
         ),
         const SizedBox(height: 12),
-        Obx(() => controller.selectedProofImage.value != null
+        Obx(() => controller.selectedProofImage != null
           ? _buildSelectedProof(theme)
           : _buildProofSelector(theme)),
       ],
@@ -655,10 +652,10 @@ class DepositFormView extends GetView<DepositController> {
       children: [
         Obx(() => CustomButton(
           text: 'Crear depósito',
-          onPressed: controller.canSubmitDeposit.value 
+          onPressed: controller.canSubmitDeposit 
             ? controller.submitDeposit 
             : null,
-          isLoading: controller.isSubmitting.value,
+          isLoading: controller.isSubmitting,
           width: double.infinity,
           type: ButtonType.primary,
           size: ButtonSize.large,

@@ -1,11 +1,14 @@
 import 'dart:convert';
 
-import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:flutter_stripe/flutter_stripe.dart' hide PaymentMethod;
+import 'package:flutter_stripe/flutter_stripe.dart' as stripe show PaymentMethod;
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
 import '../data/models/deposit_model.dart';
+import '../data/models/bank_model.dart';
 import 'auth_service.dart';
 
 class PaymentService extends GetxService {
@@ -16,13 +19,26 @@ class PaymentService extends GetxService {
   final RxBool _isInitialized = false.obs;
   final RxBool _isProcessing = false.obs;
   
+  // Observables para métodos de pago y bancos
+  final RxList<Map<String, dynamic>> _userPaymentMethods = <Map<String, dynamic>>[].obs;
+  final RxList<BankModel> _availableBanks = <BankModel>[].obs;
+  
   // Getters
   bool get isInitialized => _isInitialized.value;
   bool get isProcessing => _isProcessing.value;
+  List<Map<String, dynamic>> get userPaymentMethods => _userPaymentMethods.toList();
+  List<BankModel> get availableBanks => _availableBanks.toList();
 
   Future<PaymentService> init() async {
     await _initializeStripe();
     _isInitialized.value = true;
+    
+    // Cargar métodos de pago guardados del usuario si está autenticado
+    if (_authService.isAuthenticated) {
+      await loadUserPaymentMethods();
+      await loadAvailableBanks();
+    }
+    
     return this;
   }
 
@@ -241,7 +257,10 @@ class PaymentService extends GetxService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return (data['payment_methods'] as List)
-            .map((pm) => PaymentMethod.fromJson(pm))
+            .map((pm) => PaymentMethod.values.firstWhere(
+                (e) => e.name == pm,
+                orElse: () => PaymentMethod.bizum,
+              ))
             .toList();
       }
 
@@ -349,26 +368,238 @@ class PaymentService extends GetxService {
   }
 
   // Obtener mensaje de error de Stripe
-  String _getStripeErrorMessage(StripeException error) {
-    switch (error.error.code) {
+  String _getStripeErrorMessage(StripeException e) {
+    switch (e.error.code) {
       case FailureCode.Canceled:
-        return 'Pago cancelado por el usuario';
+        return 'Operación cancelada por el usuario';
       case FailureCode.Failed:
-        return 'El pago falló. Intenta con otra tarjeta';
-      case FailureCode.InvalidRequestError:
-        return 'Solicitud inválida';
-      case FailureCode.CardDeclined:
-        return 'Tarjeta rechazada';
-      case FailureCode.ExpiredCard:
-        return 'Tarjeta expirada';
-      case FailureCode.IncorrectCvc:
-        return 'Código CVC incorrecto';
-      case FailureCode.InsufficientFunds:
-        return 'Fondos insuficientes';
-      case FailureCode.ProcessingError:
-        return 'Error procesando el pago';
+        return 'Error en el procesamiento del pago';
+      case FailureCode.Timeout:
+        return 'La operación ha expirado';
       default:
-        return error.error.localizedMessage ?? 'Error en el pago';
+        return e.error.localizedMessage ?? 'Error desconocido';
+    }
+  }
+  
+  // ===== MÉTODOS DE PAGO =====
+  
+  // Cargar métodos de pago del usuario
+  Future<List<Map<String, dynamic>>> loadUserPaymentMethods() async {
+    if (!_authService.isAuthenticated) {
+      return [];
+    }
+    
+    try {
+      // En un caso real, esto se cargaría desde el backend
+      // Por ahora, simulamos datos de ejemplo
+      await Future.delayed(const Duration(milliseconds: 800)); // Simular carga
+      
+      // Cargar métodos guardados (en una app real, esto vendría de la base de datos)
+      final List<Map<String, dynamic>> methods = [
+        {
+          'id': '1',
+          'type': 'card',
+          'last4': '4242',
+          'brand': 'visa',
+          'exp_month': 12,
+          'exp_year': 2025,
+          'card_holder': 'Usuario Demo',
+          'is_default': true,
+          'created_at': DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
+        },
+        {
+          'id': '2',
+          'type': 'bank',
+          'bank_name': 'Santander',
+          'account_holder': 'Usuario Demo',
+          'last4': '6789',
+          'is_default': false,
+          'created_at': DateTime.now().subtract(const Duration(days: 15)).toIso8601String(),
+        },
+      ];
+      
+      _userPaymentMethods.value = methods;
+      return methods;
+    } catch (e) {
+      print('Error loading payment methods: $e');
+      return [];
+    }
+  }
+  
+  // Obtener métodos de pago del usuario (para el controlador)
+  Future<List<Map<String, dynamic>>> getUserPaymentMethods() async {
+    if (_userPaymentMethods.isEmpty) {
+      return await loadUserPaymentMethods();
+    }
+    return _userPaymentMethods.toList();
+  }
+  
+  // Agregar un nuevo método de pago
+  Future<bool> addPaymentMethod({
+    required String type,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      if (!_authService.isAuthenticated) {
+        return false;
+      }
+      
+      // Simular procesamiento
+      await Future.delayed(const Duration(milliseconds: 800));
+      
+      // En una app real, esto se enviaría al backend
+      final newMethod = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'type': type,
+        'is_default': _userPaymentMethods.isEmpty, // Si es el primero, será el predeterminado
+        'created_at': DateTime.now().toIso8601String(),
+        ...data,
+      };
+      
+      // Si es una tarjeta, agregar datos simulados
+      if (type == 'card') {
+        final cardNumber = data['card_number'] as String? ?? '';
+        if (cardNumber.isNotEmpty) {
+          newMethod['last4'] = cardNumber.replaceAll(' ', '').substring(cardNumber.length - 4);
+        } else {
+          newMethod['last4'] = '0000';
+        }
+      }
+      
+      _userPaymentMethods.add(newMethod);
+      return true;
+    } catch (e) {
+      print('Error adding payment method: $e');
+      return false;
+    }
+  }
+  
+  // Obtener bancos disponibles para depósitos
+  Future<List<BankModel>> getBanks() async {
+    try {
+      if (_availableBanks.isNotEmpty) {
+        return _availableBanks.toList();
+      }
+      
+      await loadAvailableBanks();
+      return _availableBanks.toList();
+    } catch (e) {
+      print('Error obteniendo bancos: $e');
+      return [];
+    }
+  }
+  
+  // Cargar bancos disponibles
+  Future<void> loadAvailableBanks() async {
+    try {
+      if (!_authService.isAuthenticated) return;
+      
+      // Aquí normalmente se haría una llamada al backend para obtener los bancos
+      // Por ahora simulamos una respuesta con datos de prueba
+      await Future.delayed(const Duration(milliseconds: 800));
+      
+      final List<BankModel> banks = [
+        BankModel(
+          id: 'bank_1',
+          name: 'Banco Santander',
+          accountNumber: '0049 1234 56 7890123456',
+          owner: 'SorteosMicro S.L.',
+          logoUrl: 'https://example.com/logos/santander.png',
+        ),
+        BankModel(
+          id: 'bank_2',
+          name: 'BBVA',
+          accountNumber: '0182 1234 56 7890123456',
+          owner: 'SorteosMicro S.L.',
+          logoUrl: 'https://example.com/logos/bbva.png',
+        ),
+        BankModel(
+          id: 'bank_3',
+          name: 'CaixaBank',
+          accountNumber: '2100 1234 56 7890123456',
+          owner: 'SorteosMicro S.L.',
+          logoUrl: 'https://example.com/logos/caixabank.png',
+        ),
+        BankModel(
+          id: 'bank_4',
+          name: 'Sabadell',
+          accountNumber: '0081 1234 56 7890123456',
+          owner: 'SorteosMicro S.L.',
+          logoUrl: 'https://example.com/logos/sabadell.png',
+        ),
+      ];
+      
+      _availableBanks.assignAll(banks);
+    } catch (e) {
+      print('Error cargando bancos: $e');
+    }
+  }
+  
+  // Eliminar un método de pago
+  Future<bool> removePaymentMethod(String id) async {
+    try {
+      if (!_authService.isAuthenticated) {
+        return false;
+      }
+      
+      // Simular procesamiento
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Buscar el método a eliminar
+      final methodIndex = _userPaymentMethods.indexWhere((m) => m['id'] == id);
+      if (methodIndex == -1) {
+        return false;
+      }
+      
+      // Verificar si es el método predeterminado
+      final isDefault = _userPaymentMethods[methodIndex]['is_default'] ?? false;
+      
+      // Eliminar el método
+      _userPaymentMethods.removeAt(methodIndex);
+      
+      // Si era el predeterminado y hay otros métodos, establecer uno nuevo como predeterminado
+      if (isDefault && _userPaymentMethods.isNotEmpty) {
+        _userPaymentMethods[0]['is_default'] = true;
+      }
+      
+      return true;
+    } catch (e) {
+      print('Error removing payment method: $e');
+      return false;
+    }
+  }
+  
+  // Establecer un método de pago como predeterminado
+  Future<bool> setDefaultPaymentMethod(String id) async {
+    try {
+      if (!_authService.isAuthenticated) {
+        return false;
+      }
+      
+      // Simular procesamiento
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Buscar el método a establecer como predeterminado
+      final methodIndex = _userPaymentMethods.indexWhere((m) => m['id'] == id);
+      if (methodIndex == -1) {
+        return false;
+      }
+      
+      // Quitar la marca de predeterminado de todos los métodos
+      for (final method in _userPaymentMethods) {
+        method['is_default'] = false;
+      }
+      
+      // Establecer el nuevo método predeterminado
+      _userPaymentMethods[methodIndex]['is_default'] = true;
+      
+      // Actualizar la lista para reflejar los cambios
+      _userPaymentMethods.refresh();
+      
+      return true;
+    } catch (e) {
+      print('Error setting default payment method: $e');
+      return false;
     }
   }
 }

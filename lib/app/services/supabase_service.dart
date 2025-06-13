@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -35,8 +36,8 @@ class SupabaseService extends GetxService {
           .from('raffles')
           .select('''
             *,
-            tickets:tickets(count),
-            participants:tickets(user_id).user_id
+            tickets!tickets_raffle_id_fkey(count),
+            participants:tickets!tickets_raffle_id_fkey(user_id).user_id
           ''')
           .eq('status', 'active')
           .order('created_at', ascending: false);
@@ -79,7 +80,7 @@ class SupabaseService extends GetxService {
           .select('''
             *,
             winner:users!raffles_winner_id_fkey(*),
-            tickets:tickets(count)
+            tickets!tickets_raffle_id_fkey(count)
           ''')
           .eq('status', 'completed')
           .order('end_date', ascending: false)
@@ -192,17 +193,63 @@ class SupabaseService extends GetxService {
       if (_authService.currentUser == null) return [];
 
       final response = await _client
-          .from('deposits')
+          .from('transactions')
           .select('*')
           .eq('user_id', _authService.currentUser!.id)
+          .eq('type', 'deposit')
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
-      return response.map((json) => DepositModel.fromJson(json)).toList();
+      return response.map((json) => _mapTransactionToDeposit(json)).toList();
     } catch (e) {
       print('Error getting user deposits: $e');
       return [];
     }
+  }
+
+  // Helper method to map transaction records to DepositModel
+  DepositModel _mapTransactionToDeposit(Map<String, dynamic> transaction) {
+    // Extract the payment method from the transaction
+    final paymentMethod = transaction['payment_method'] ?? '';
+    PaymentMethod method;
+    
+    if (paymentMethod == 'bizum') {
+      method = PaymentMethod.bizum;
+    } else if (paymentMethod == 'transfer') {
+      method = PaymentMethod.transfer;
+    } else if (paymentMethod == 'paypal') {
+      method = PaymentMethod.paypal;
+    } else {
+      method = PaymentMethod.bizum; // Default
+    }
+    
+    // Map the transaction status to deposit status
+    DepositStatus status;
+    final transactionStatus = transaction['status'] ?? 'pending';
+    if (transactionStatus == 'completed') {
+      status = DepositStatus.approved;
+    } else if (transactionStatus == 'failed') {
+      status = DepositStatus.rejected;
+    } else {
+      status = DepositStatus.pending;
+    }
+    
+    return DepositModel(
+      id: transaction['id'] ?? '',
+      userId: transaction['user_id'] ?? '',
+      amount: (transaction['amount'] ?? 0.0).toDouble(),
+      paymentMethod: method,
+      status: status,
+      referenceCode: transaction['reference_id'] ?? '',
+      paymentProof: transaction['payment_proof'],
+      adminNotes: transaction['admin_notes'],
+      createdAt: DateTime.parse(transaction['created_at']),
+      processedAt: transaction['updated_at'] != null 
+          ? DateTime.parse(transaction['updated_at']) 
+          : null,
+      processedBy: transaction['processed_by'],
+      paymentDetails: transaction['payment_details'],
+    );
   }
 
   // Subir comprobante de pago
@@ -210,9 +257,10 @@ class SupabaseService extends GetxService {
     try {
       if (_authService.currentUser == null) return null;
 
-      final file = await _client.storage
+      final file = File(filePath);
+      await _client.storage
           .from('payment-proofs')
-          .upload('${_authService.currentUser!.id}/$fileName', filePath);
+          .upload('${_authService.currentUser!.id}/$fileName', file);
 
       return _client.storage
           .from('payment-proofs')
@@ -251,13 +299,15 @@ class SupabaseService extends GetxService {
     try {
       if (_authService.currentUser == null) return [];
 
+      // Consulta modificada para evitar ordenar por created_at
       final response = await _client
           .from('tickets')
           .select('''
             *,
-            raffle:raffles(*)
+            raffle:raffles!tickets_raffle_id_fkey(*)
           ''')
           .eq('user_id', _authService.currentUser!.id)
+          // Ahora podemos usar created_at ya que existe
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
@@ -276,12 +326,10 @@ class SupabaseService extends GetxService {
     try {
       if (_authService.currentUser == null) return [];
 
+      // Consulta simplificada sin la relación problemática
       final response = await _client
           .from('raffles')
-          .select('''
-            *,
-            winning_ticket:tickets!raffles_winning_ticket_id_fkey(*)
-          ''')
+          .select('*')
           .eq('winner_id', _authService.currentUser!.id)
           .order('end_date', ascending: false)
           .range(offset, offset + limit - 1);
@@ -400,18 +448,24 @@ class SupabaseService extends GetxService {
       throw Exception('Usuario no autenticado');
     }
 
+    // Para las transacciones que son depósitos del usuario actual
     return _client
         .channel('user_deposits')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
-          table: 'deposits',
+          table: 'transactions',
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'user_id',
             value: _authService.currentUser!.id,
           ),
-          callback: (payload) => onUpdate(),
+          callback: (payload) {
+            // Verificamos que sea de tipo 'deposit' antes de actualizar
+            if (payload.newRecord['type'] == 'deposit') {
+              onUpdate();
+            }
+          },
         )
         .subscribe();
   }

@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
-import '../widgets/loading_widget.dart';
 
 class AuthView extends GetView<AuthController> {
   const AuthView({Key? key}) : super(key: key);
@@ -14,7 +13,7 @@ class AuthView extends GetView<AuthController> {
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -60,7 +59,7 @@ class AuthView extends GetView<AuthController> {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: theme.colorScheme.primary.withOpacity(0.3),
+                color: theme.colorScheme.primary.withValues(alpha: 0.3),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -77,10 +76,10 @@ class AuthView extends GetView<AuthController> {
         
         // Título
         Text(
-          'Sorteos App',
+          'Sorteos',
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onBackground,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         
@@ -88,9 +87,13 @@ class AuthView extends GetView<AuthController> {
         
         // Subtítulo
         Obx(() => Text(
-          _getSubtitle(),
+          controller.isRecoveryMode.value 
+            ? 'Recupera tu contraseña'
+            : controller.isLoginMode.value 
+              ? 'Bienvenido de vuelta'
+              : 'Crea tu cuenta',
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: theme.colorScheme.onBackground.withOpacity(0.7),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
           ),
           textAlign: TextAlign.center,
         )),
@@ -147,18 +150,28 @@ class AuthView extends GetView<AuthController> {
               Obx(() => Checkbox(
                 value: controller.rememberMe.value,
                 onChanged: controller.toggleRememberMe,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               )),
               Text(
                 'Recordar sesión',
                 style: theme.textTheme.bodyMedium,
               ),
               const Spacer(),
-              TextButton(
-                onPressed: controller.goToRecovery,
-                child: Text(
-                  '¿Olvidaste tu contraseña?',
-                  style: TextStyle(
-                    color: theme.colorScheme.primary,
+              Flexible(
+                child: TextButton(
+                  onPressed: controller.goToRecovery,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    '¿Olvidaste tu contraseña?',
+                    style: TextStyle(
+                      color: theme.colorScheme.primary,
+                      fontSize: 12, // Reducir el tamaño de fuente
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -170,8 +183,8 @@ class AuthView extends GetView<AuthController> {
           // Botón de login
           Obx(() => CustomButton(
             text: 'Iniciar sesión',
-            onPressed: controller.canLogin.value ? controller.login : null,
-            isLoading: controller.isLoading.value,
+            onPressed: controller.canLogin ? controller.login : null,
+            isLoading: controller.isLoading,
             width: double.infinity,
             type: ButtonType.primary,
             size: ButtonSize.large,
@@ -315,8 +328,8 @@ class AuthView extends GetView<AuthController> {
           // Botón de registro
           Obx(() => CustomButton(
             text: 'Crear cuenta',
-            onPressed: controller.canRegister.value ? controller.register : null,
-            isLoading: controller.isLoading.value,
+            onPressed: controller.canRegister ? controller.register : null,
+            isLoading: controller.isLoading,
             width: double.infinity,
             type: ButtonType.primary,
             size: ButtonSize.large,
@@ -359,7 +372,7 @@ class AuthView extends GetView<AuthController> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -373,7 +386,7 @@ class AuthView extends GetView<AuthController> {
                   child: Text(
                     'Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.8),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                     ),
                   ),
                 ),
@@ -400,8 +413,8 @@ class AuthView extends GetView<AuthController> {
           // Botón de envío
           Obx(() => CustomButton(
             text: 'Enviar enlace',
-            onPressed: controller.canSendReset.value ? controller.sendPasswordReset : null,
-            isLoading: controller.isLoading.value,
+            onPressed: controller.canSendReset ? controller.sendPasswordReset : null,
+            isLoading: controller.isLoading,
             width: double.infinity,
             type: ButtonType.primary,
             size: ButtonSize.large,
@@ -426,7 +439,7 @@ class AuthView extends GetView<AuthController> {
   }
 
   Widget _buildFooterLinks(ThemeData theme) {
-    return Column(
+    return Obx(() => Column(
       children: [
         // Divider con "O"
         Row(
@@ -437,7 +450,7 @@ class AuthView extends GetView<AuthController> {
               child: Text(
                 'O',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             ),
@@ -459,13 +472,13 @@ class AuthView extends GetView<AuthController> {
           
           const SizedBox(height: 12),
           
-          CustomButton(
+         /*  CustomButton(
             text: 'Continuar con Apple',
             onPressed: controller.signInWithApple,
             type: ButtonType.outlined,
             width: double.infinity,
             icon: Icons.apple,
-          ),
+          ), */
         ],
         
         const SizedBox(height: 20),
@@ -479,14 +492,14 @@ class AuthView extends GetView<AuthController> {
               child: Text(
                 'Ayuda',
                 style: TextStyle(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
             ),
             Text(
               '•',
               style: TextStyle(
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
             TextButton(
@@ -494,14 +507,14 @@ class AuthView extends GetView<AuthController> {
               child: Text(
                 'Privacidad',
                 style: TextStyle(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
             ),
             Text(
               '•',
               style: TextStyle(
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
             TextButton(
@@ -509,22 +522,13 @@ class AuthView extends GetView<AuthController> {
               child: Text(
                 'Términos',
                 style: TextStyle(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
             ),
           ],
         ),
       ],
-    );
-  }
-
-  String _getSubtitle() {
-    if (controller.isRecoveryMode.value) {
-      return 'Recupera tu contraseña';
-    }
-    return controller.isLoginMode.value
-      ? 'Inicia sesión para participar en sorteos'
-      : 'Crea tu cuenta y comienza a ganar';
+    ));
   }
 } 

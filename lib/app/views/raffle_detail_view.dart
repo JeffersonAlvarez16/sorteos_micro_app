@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../controllers/raffle_controller.dart';
+import '../data/models/raffle_model.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/loading_widget.dart';
 import '../widgets/empty_state_widget.dart';
 import '../widgets/stat_card.dart';
 
 class RaffleDetailView extends GetView<RaffleController> {
-  const RaffleDetailView({Key? key}) : super(key: key);
+  const RaffleDetailView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -17,11 +18,11 @@ class RaffleDetailView extends GetView<RaffleController> {
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
       body: Obx(() {
-        if (controller.isLoading.value && controller.currentRaffle.value == null) {
+        if (controller.isLoading && controller.currentRaffle == null) {
           return const LoadingWidget(message: 'Cargando sorteo...');
         }
 
-        if (controller.currentRaffle.value == null) {
+        if (controller.currentRaffle == null) {
           return const ErrorStateWidget(
             title: 'Sorteo no encontrado',
             subtitle: 'No se pudo cargar la información del sorteo.',
@@ -73,7 +74,7 @@ class RaffleDetailView extends GetView<RaffleController> {
       foregroundColor: theme.colorScheme.onPrimary,
       flexibleSpace: FlexibleSpaceBar(
         title: Obx(() => Text(
-          controller.currentRaffle.value?.title ?? '',
+          controller.currentRaffle?.title ?? '',
           style: TextStyle(
             color: theme.colorScheme.onPrimary,
             fontWeight: FontWeight.bold,
@@ -158,23 +159,23 @@ class RaffleDetailView extends GetView<RaffleController> {
   }
 
   Widget _buildStatusBadge(ThemeData theme) {
-    final raffle = controller.currentRaffle.value!;
+    final raffle = controller.currentRaffle!;
     Color statusColor;
     String statusText;
     IconData statusIcon;
 
     switch (raffle.status) {
-      case 'active':
+      case RaffleStatus.active:
         statusColor = Colors.green;
         statusText = 'Activo';
         statusIcon = Icons.play_circle;
         break;
-      case 'completed':
+      case RaffleStatus.completed:
         statusColor = Colors.blue;
         statusText = 'Completado';
         statusIcon = Icons.check_circle;
         break;
-      case 'cancelled':
+      case RaffleStatus.cancelled:
         statusColor = Colors.red;
         statusText = 'Cancelado';
         statusIcon = Icons.cancel;
@@ -218,7 +219,7 @@ class RaffleDetailView extends GetView<RaffleController> {
 
   Widget _buildTimeRemaining(ThemeData theme) {
     return Obx(() {
-      final timeRemaining = controller.timeRemaining.value;
+      final timeRemaining = controller.timeRemaining;
       if (timeRemaining.isEmpty) return const SizedBox.shrink();
 
       return Container(
@@ -258,7 +259,7 @@ class RaffleDetailView extends GetView<RaffleController> {
         children: [
           // Descripción
           Obx(() {
-            final description = controller.currentRaffle.value?.description ?? '';
+            final description = controller.currentRaffle?.description ?? '';
             if (description.isEmpty) return const SizedBox.shrink();
             
             return Column(
@@ -289,7 +290,8 @@ class RaffleDetailView extends GetView<RaffleController> {
                 child: _buildInfoCard(
                   theme,
                   'Premio',
-                  '€${controller.currentRaffle.value?.prizeAmount.toStringAsFixed(2) ?? '0.00'}',
+                  '€${controller.currentRaffle?.prizeAmount.toStringAsFixed(2) ?? '0.00'}',
+
                   Icons.emoji_events,
                   theme.colorScheme.primary,
                 ),
@@ -299,7 +301,8 @@ class RaffleDetailView extends GetView<RaffleController> {
                 child: _buildInfoCard(
                   theme,
                   'Precio por boleto',
-                  '€${controller.currentRaffle.value?.ticketPrice.toStringAsFixed(2) ?? '0.00'}',
+                  '€${controller.currentRaffle?.ticketPrice.toStringAsFixed(2) ?? '0.00'}',
+
                   Icons.confirmation_number,
                   theme.colorScheme.secondary,
                 ),
@@ -383,7 +386,7 @@ class RaffleDetailView extends GetView<RaffleController> {
   }
 
   Widget _buildProgressSection(ThemeData theme) {
-    final raffle = controller.currentRaffle.value!;
+    final raffle = controller.currentRaffle!;
     final progress = raffle.maxTickets > 0 ? raffle.soldTickets / raffle.maxTickets : 0.0;
     
     return Column(
@@ -432,7 +435,7 @@ class RaffleDetailView extends GetView<RaffleController> {
   }
 
   Widget _buildStatsGrid(ThemeData theme) {
-    final stats = controller.raffleStats.value;
+    final stats = controller.raffleStats;
     
     return GridView.count(
       shrinkWrap: true,
@@ -444,25 +447,25 @@ class RaffleDetailView extends GetView<RaffleController> {
       children: [
         CompactStatCard(
           title: 'Participantes',
-          value: stats?.participantCount.toString() ?? '0',
+          value: stats['participant_count']?.toString() ?? '0',
           icon: Icons.people,
           color: Colors.blue,
         ),
         CompactStatCard(
           title: 'Mis boletos',
-          value: controller.userTicketCount.value.toString(),
+          value: controller.userTicketCount.toString(),
           icon: Icons.confirmation_number,
           color: theme.colorScheme.primary,
         ),
         CompactStatCard(
           title: 'Probabilidad',
-          value: '${controller.winProbability.value.toStringAsFixed(2)}%',
+          value: '${controller.winProbability.toStringAsFixed(2)}%',
           icon: Icons.trending_up,
           color: Colors.green,
         ),
         CompactStatCard(
           title: 'Inversión',
-          value: '€${controller.totalInvestment.value.toStringAsFixed(2)}',
+          value: '€${controller.totalInvestment.toStringAsFixed(2)}',
           icon: Icons.account_balance_wallet,
           color: Colors.orange,
         ),
@@ -472,7 +475,7 @@ class RaffleDetailView extends GetView<RaffleController> {
 
   Widget _buildTicketSelector(ThemeData theme) {
     return Obx(() {
-      if (!controller.canPurchaseTickets.value) {
+      if (!controller.canPurchaseTickets) {
         return const SizedBox.shrink();
       }
 
@@ -528,7 +531,7 @@ class RaffleDetailView extends GetView<RaffleController> {
                   ),
                   child: Center(
                     child: Text(
-                      controller.selectedTicketCount.value.toString(),
+                      controller.selectedTicketCount.toString(),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -551,7 +554,7 @@ class RaffleDetailView extends GetView<RaffleController> {
               children: [1, 5, 10, 25].map((count) {
                 return ChoiceChip(
                   label: Text('$count'),
-                  selected: controller.selectedTicketCount.value == count,
+                  selected: controller.selectedTicketCount == count,
                   onSelected: (_) => controller.setTicketCount(count),
                 );
               }).toList(),
@@ -576,7 +579,7 @@ class RaffleDetailView extends GetView<RaffleController> {
                     ),
                   ),
                   Text(
-                    '€${controller.totalCost.value.toStringAsFixed(2)}',
+                    '€${controller.totalCost.toStringAsFixed(2)}',
                     style: theme.textTheme.titleLarge?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.bold,
@@ -608,14 +611,14 @@ class RaffleDetailView extends GetView<RaffleController> {
           _buildInfoRow(
             theme,
             'Fecha de inicio',
-            controller.formatDate(controller.currentRaffle.value?.startDate),
+            controller.currentRaffle?.startTime != null ? controller.formatDate(controller.currentRaffle!.startTime) : 'N/A',
             Icons.calendar_today,
           ),
           
           _buildInfoRow(
             theme,
             'Fecha de finalización',
-            controller.formatDate(controller.currentRaffle.value?.endDate),
+            controller.currentRaffle?.endTime != null ? controller.formatDate(controller.currentRaffle!.endTime) : 'N/A',
             Icons.event,
           ),
           
@@ -697,12 +700,12 @@ class RaffleDetailView extends GetView<RaffleController> {
           
           // Lista de participantes recientes
           Obx(() {
-            if (controller.isLoadingParticipants.value) {
+            if (controller.isLoadingParticipants) {
               return const LoadingWidget(message: 'Cargando participantes...');
             }
             
             if (controller.recentParticipants.isEmpty) {
-              return const NoDataWidget(
+              return const EmptyStateWidget(
                 title: 'Sin participantes aún',
                 subtitle: '¡Sé el primero en participar!',
               );
@@ -714,21 +717,26 @@ class RaffleDetailView extends GetView<RaffleController> {
               itemCount: controller.recentParticipants.length.clamp(0, 5),
               itemBuilder: (context, index) {
                 final participant = controller.recentParticipants[index];
+                final name = participant['user_name'] as String? ?? 'Anónimo';
+                final nameInitial = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'A';
+                
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
                     child: Text(
-                      participant.name.substring(0, 1).toUpperCase(),
+                      nameInitial,
                       style: TextStyle(
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  title: Text(participant.name),
-                  subtitle: Text('${participant.ticketCount} boletos'),
+                  title: Text(name),
+                  subtitle: Text('${participant['ticket_count'] ?? 0} boletos'),
                   trailing: Text(
-                    controller.formatTimeAgo(participant.purchaseDate),
+                    participant['purchase_time'] != null 
+                        ? controller.formatTimeAgo(DateTime.parse(participant['purchase_time'] as String))
+                        : 'N/A',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withOpacity(0.6),
                     ),
@@ -744,7 +752,7 @@ class RaffleDetailView extends GetView<RaffleController> {
 
   Widget _buildBottomBar(ThemeData theme) {
     return Obx(() {
-      if (!controller.canPurchaseTickets.value) {
+      if (!controller.canPurchaseTickets) {
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -795,9 +803,9 @@ class RaffleDetailView extends GetView<RaffleController> {
             Expanded(
               flex: 2,
               child: CustomButton(
-                text: 'Comprar boletos (€${controller.totalCost.value.toStringAsFixed(2)})',
+                text: 'Comprar boletos (€${controller.totalCost.toStringAsFixed(2)})',
                 onPressed: controller.purchaseTickets,
-                isLoading: controller.isPurchasing.value,
+                isLoading: controller.isPurchasing,
                 type: ButtonType.primary,
                 size: ButtonSize.large,
               ),
@@ -809,10 +817,10 @@ class RaffleDetailView extends GetView<RaffleController> {
   }
 
   String _getDisabledButtonText() {
-    final raffle = controller.currentRaffle.value;
+    final raffle = controller.currentRaffle;
     if (raffle == null) return 'Cargando...';
     
-    switch (raffle.status) {
+    switch (raffle.status.name) {
       case 'completed':
         return 'Sorteo finalizado';
       case 'cancelled':
